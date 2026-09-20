@@ -3,179 +3,122 @@ import bcrypt from "bcrypt";
 import userModel from "../models/user.model.js";
 import envConfig from "../config/env.js";
 import redisClient from "../services/redies.services.js";
+import asyncHandler from "../utils/asyncHandler.js";
+import AppError from "../utils/appError.js";
 
-export const registerController = async (req, res) => {
-  try {
-    const { email, password } = req.body;
+export const registerController = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(401).json({
-        success: false,
-        message: "All field are required",
-      });
-    }
-    const isEmailExist = await userModel.findOne({ email });
+  if (!email || !password) {
+    throw new AppError("All field are required", 400);
+  }
+  const isEmailExist = await userModel.findOne({ email });
 
-    if (isEmailExist) {
-      return res.status(401).json({
-        success: false,
-        message: "User already exists",
-      });
-    }
+  if (isEmailExist) {
+    throw new AppError("user already exists", 400);
+  }
 
-    const hashPass = await bcrypt.hash(password, 10);
+  const hashPass = await bcrypt.hash(password, 10);
 
-    const user = await userModel.create({
-      email,
-      password: hashPass,
-    });
+  const user = await userModel.create({
+    email,
+    password: hashPass,
+  });
 
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: "User not create some reason",
-      });
-    }
-
-    const token = jwt.sign(
-      {
-        id: user._id,
-        email: user.email,
-      },
-      envConfig.JWT_SECRET,
-      { expiresIn: "7d" },
-    );
-
-    res.cookie("token", token);
-
-    const userDetail = user.toObject();
-    delete userDetail.password;
-
-    res.status(201).json({
-      success: true,
-      message: "user Register successfully",
-      userDetail,
-    });
-  } catch (error) {
-    console.log("something went wrong from userCreateController", error);
-    res.status(500).json({
+  if (!user) {
+    return res.status(401).json({
       success: false,
-      message: "something went wrong from userCreateController",
+      message: "User not create some reason",
     });
   }
-};
 
-export const loginController = async (req, res) => {
-  try {
-    const { email, password } = req.body;
+  const token = jwt.sign(
+    {
+      id: user._id,
+      email: user.email,
+    },
+    envConfig.JWT_SECRET,
+    { expiresIn: "7d" },
+  );
 
-    if ((!email, !password)) {
-      return res.status(401).json({
-        success: false,
-        message: "All field are required",
-      });
-    }
+  res.cookie("token", token);
 
-    const user = await userModel.findOne({ email }).select("+password");
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: "user not found",
-      });
-    }
+  const userDetail = user.toObject();
+  delete userDetail.password;
 
-    const checkPass = await bcrypt.compare(password, user.password);
+  res.status(201).json({
+    success: true,
+    message: "user Register successfully",
+    userDetail,
+  });
+});
 
-    if (!checkPass) {
-      return res.status(401).json({
-        success: false,
-        message: "Password in valid",
-      });
-    }
+export const loginController = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
 
-    const token = jwt.sign(
-      {
-        id: user._id,
-        email: user.email,
-      },
-      envConfig.JWT_SECRET,
-      { expiresIn: "7d" },
-    );
-
-    res.cookie("token", token);
-
-    const userDetail = user.toObject();
-
-    delete userDetail.password;
-
-    res.status(201).json({
-      success: true,
-      message: "User login Successfully",
-      userDetail,
-    });
-  } catch (error) {
-    console.log("something went wrong form loginController", error);
-    res.status(500).json({
-      success: false,
-      message: "something went wrong form loginController",
-    });
+  if ((!email, !password)) {
+    throw new AppError("All field are required", 400);
   }
-};
 
-export const getMeController = async (req, res) => {
-  try {
-    const { id } = req.user;
-
-    const userDetail = await userModel.findById(id);
-
-    if (!userDetail) {
-      return res.status(401).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: "get data",
-      userDetail,
-    });
-  } catch (error) {
-    console.log("something went wrong from getMeController", error);
-    res.status(500).json({
-      success: false,
-      message: "something went wrong from getMeController",
-    });
+  const user = await userModel.findOne({ email }).select("+password");
+  if (!user) {
+    throw new AppError("User Not Found", 401);
   }
-};
 
+  const checkPass = await bcrypt.compare(password, user.password);
 
-export const logOutController = async(req,res)=>{
-  try {
-     
-       const token = req?.cookies?.token;
-      if(!token){
-        return res.status(401).json({
-          success:false,
-          message:"Unauthorized User"
-        })
-      }
-      res.clearCookie("token")
-
-      redisClient.set(token,'logout',"EX",60*60*7*24)
-      res.status(200).json({
-        success:true,
-        message:"LogOut successfully"
-      })
-
-
-
-  } catch (error) {
-    console.log("something went wrong from logOut Controller",error);
-    res.status(500)
-    .json({
-      success:false,
-      message:"something went wrong from logOut Controller"
-    })
+  if (!checkPass) {
+    throw new AppError("Password or Email Are Invalid");
   }
-}
+
+  const token = jwt.sign(
+    {
+      id: user._id,
+      email: user.email,
+    },
+    envConfig.JWT_SECRET,
+    { expiresIn: "7d" },
+  );
+
+  res.cookie("token", token);
+
+  const userDetail = user.toObject();
+
+  delete userDetail.password;
+
+  res.status(201).json({
+    success: true,
+    message: "User login Successfully",
+    userDetail,
+  });
+});
+
+export const getMeController = asyncHandler(async (req, res) => {
+  const { id } = req.user;
+
+  const userDetail = await userModel.findById(id);
+
+  if (!userDetail) {
+    throw new AppError("Unauthorized User");
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: "get data",
+    userDetail,
+  });
+});
+
+export const logOutController = asyncHandler(async (req, res) => {
+  const token = req?.cookies?.token;
+  if (!token) {
+    throw new AppError("Login Again");
+  }
+  res.clearCookie("token");
+
+  redisClient.set(token, "logout", "EX", 60 * 60 * 7 * 24);
+  res.status(200).json({
+    success: true,
+    message: "LogOut successfully",
+  });
+});
