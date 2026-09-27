@@ -20,6 +20,11 @@ app.use(morgan("dev"));
 
 app.use("/api/auth", authRouter);
 app.use("/api/project", projectRouter);
+
 app.use(errorMiddleware);
+
+ app.get("/",(req,res)=>{
+  res.send("helllo india")
+ })
 
 export default app;

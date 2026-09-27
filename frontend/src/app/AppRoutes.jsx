@@ -4,6 +4,7 @@ import Login from "../features/auth/pages/Login";
 import Register from "../features/auth/pages/Register";
 import PrivateLayout from "../components/PrivateLayout";
 import Home from "../components/Home";
+import Project from "../features/project/pages/Project";
  
 export const router =createBrowserRouter([
     {path:"/",
@@ -25,6 +26,9 @@ export const router =createBrowserRouter([
             {
                 path:"",
                 element:<Home/>
+            },{
+            path:"project",
+            element:<Project/>
             }
         ]
     }

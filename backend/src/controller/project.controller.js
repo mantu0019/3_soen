@@ -1,40 +1,118 @@
+import mongoose from "mongoose";
 import projectModel from "../models/project.model.js";
+import AppError from "../utils/appError.js";
+import asyncHandler from "../utils/asyncHandler.js";
+import userModel from "../models/user.model.js";
 
-export const createProject = async (req, res) => {
-  try {
-    const { name } = req.body;
-    const userId = req.user;
-    console.log("🚀 ~ createProject ~ userId:", userId.id);
+export const createProject = asyncHandler(async (req, res) => {
+  const { name } = req.body;
+  const userId = req.user;
 
-    if (!userId) {
-      return;
-      res.status(401).json({
-        success: false,
-        message: "Unauthorized User",
-      });
-    }
-
-    if (!name) {
-      return res.status(401).json({
-        success: false,
-        message: "all field are required",
-      });
-    }
-
-    const newProject = await projectModel.create({ name, user: userId._id });
-    if (!newProject) {
-      return res.status(401).json({
-        success: false,
-        message: "something went wrong in newProject",
-      });
-    }
-
-    res.status(201).json({
-      success: true,
-      message: "new project created",
-      newProject,
-    });
-  } catch (error) {
-    console.log("something went wrong from create project controller", error);
+  const nameAllReadyExists = await projectModel.findOne({ name });
+  if (nameAllReadyExists) {
+    throw new AppError("Name should be unique");
   }
-};
+
+  if (!userId) {
+    throw new AppError("Unauthorized User", 400);
+  }
+
+  if (!name) {
+    throw new AppError("All Field are required", 401);
+  }
+
+  const newProject = await projectModel.create({ name,  user: [userId._id] });
+  if (!newProject) {
+    throw new AppError("Porject Not Created Some Reason");
+  }
+
+  res.status(201).json({
+    success: true,
+    message: "new project created",
+    newProject,
+  });
+});
+
+export const getAllProject = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const allProductName = await projectModel.find({
+    user: userId,
+  });
+
+  if (!allProductName) {
+    throw new AppError("All product Name Not Found", 401);
+  }
+
+  res.status(200).json({
+    success: true,
+    message: "fetched all data",
+    allProductName,
+  });
+});
+
+ 
+
+export const addUserToProject = asyncHandler(async (req, res) => {
+  const { projectId, user } = req.body;
+
+  
+  const loggedInUser = await userModel.findById(req.user._id);
+  console.log("🚀 ~ loggedInUser:", loggedInUser._id)
+  
+  console.log("PROJECT ID:", projectId);
+  console.log("LOGGED USER ID:", loggedInUser._id);
+   
+  if (!loggedInUser) {
+    throw new AppError("LoggedIn user not found", 404);
+  }
+
+  if (!projectId || !user) {
+    throw new AppError("ProjectId or user is required", 400);
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(projectId)) {
+    throw new AppError("Invalid ProjectId", 400);
+  }
+
+  if (
+    !Array.isArray(user) ||
+    user.some((userId) => !mongoose.Types.ObjectId.isValid(userId))
+  ) {
+    throw new AppError("Invalid userId in user array", 400);
+  }
+
+   
+  const project = await projectModel.findOne({
+    _id: projectId,
+    user: loggedInUser._id,
+  });
+
+  if (!project) {
+    throw new AppError("User does not belong to this project", 403);
+  }
+
+  // Add requested users
+  const updatedProject = await projectModel.findByIdAndUpdate(
+    projectId,
+    {
+      $addToSet: {
+        user: {
+          $each: user,
+        },
+      },
+    },
+    {
+      new: true,
+    }
+  );
+
+  if (!updatedProject) {
+    throw new AppError("Project update failed", 500);
+  }
+
+  res.status(200).json({
+    success: true,
+    message: "Users added to project successfully",
+    project: updatedProject,
+  });
+});

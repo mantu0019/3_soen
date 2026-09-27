@@ -4,17 +4,20 @@ const projectSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      unique: true,
+      unique: [true, "project name should be unique"],
       lowercase: true,
       required: true,
       trim: true,
     },
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Users",
-    },
+
+    user: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Users",
+      },
+    ],
   },
-  { timestamps: true },
+  { timestamps: true }
 );
 
 const projectModel = mongoose.model("projects", projectSchema);

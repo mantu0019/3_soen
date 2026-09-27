@@ -4,7 +4,12 @@ import {
   createProjectServices,
   validate,
 } from "../services/project.services.js";
-import { createProject } from "../controller/project.controller.js";
+
+import {
+  addUserToProject,
+  createProject,
+  getAllProject,
+} from "../controller/project.controller.js";
 
 const projectRouter = Router();
 
@@ -16,4 +21,6 @@ projectRouter.post(
   createProject,
 );
 
+projectRouter.get("/get", authMiddleware, getAllProject);
+projectRouter.put("/add-user", authMiddleware, addUserToProject);
 export default projectRouter;

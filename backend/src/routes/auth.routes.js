@@ -4,7 +4,7 @@ import { loginValidation, registerValidation, validate } from "../services/user.
 import authMiddleware from "../middleware/auth.middleware.js";
 
 const authRouter = Router();
-
+ console.log("hello router")
 authRouter.post('/register',registerValidation,validate,registerController);
 authRouter.post("/login",loginValidation,validate,loginController)
 authRouter.get("/get-me",authMiddleware,getMeController)
