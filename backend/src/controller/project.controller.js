@@ -21,7 +21,7 @@ export const createProject = asyncHandler(async (req, res) => {
     throw new AppError("All Field are required", 401);
   }
 
-  const newProject = await projectModel.create({ name,  user: [userId._id] });
+  const newProject = await projectModel.create({ name, user: [userId._id] });
   if (!newProject) {
     throw new AppError("Porject Not Created Some Reason");
   }
@@ -50,18 +50,15 @@ export const getAllProject = asyncHandler(async (req, res) => {
   });
 });
 
- 
-
 export const addUserToProject = asyncHandler(async (req, res) => {
   const { projectId, user } = req.body;
 
-  
   const loggedInUser = await userModel.findById(req.user._id);
-  console.log("🚀 ~ loggedInUser:", loggedInUser._id)
-  
+  console.log("🚀 ~ loggedInUser:", loggedInUser._id);
+
   console.log("PROJECT ID:", projectId);
   console.log("LOGGED USER ID:", loggedInUser._id);
-   
+
   if (!loggedInUser) {
     throw new AppError("LoggedIn user not found", 404);
   }
@@ -81,7 +78,6 @@ export const addUserToProject = asyncHandler(async (req, res) => {
     throw new AppError("Invalid userId in user array", 400);
   }
 
-   
   const project = await projectModel.findOne({
     _id: projectId,
     user: loggedInUser._id,
@@ -103,7 +99,7 @@ export const addUserToProject = asyncHandler(async (req, res) => {
     },
     {
       new: true,
-    }
+    },
   );
 
   if (!updatedProject) {
@@ -115,4 +111,28 @@ export const addUserToProject = asyncHandler(async (req, res) => {
     message: "Users added to project successfully",
     project: updatedProject,
   });
+});
+
+export const getProjectController = asyncHandler(async (req, res) => {
+  const {projectId} = req.params;
+  console.log("🚀 ~ projectId:", projectId)
+  
+
+  if (!projectId) {
+    throw new AppError("projectId is required", 401);
+  }
+
+  const project = await projectModel.findById(projectId);
+
+  if (!project) {
+    throw new AppError("Project Not Found", 401);
+  }
+
+  res.status(200).json({
+    success:false,
+    message:"fetched project successfully",
+    project
+  })
+
+
 });

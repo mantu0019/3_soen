@@ -1,7 +1,7 @@
 import React from "react";
 import { useAuth } from "../features/auth/hooks/useAuth";
 import Loading from "./Loading";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 const Home = () => {
   const navigate = useNavigate();
@@ -48,6 +48,11 @@ const Home = () => {
           <div className="text-2xl font-bold tracking-tight">
             SEO<span className="text-yellow-300">N</span>
           </div>
+       <Link to={"project"} 
+        className=" capitalize py-1 px-3 rounded active:scale-95  bg-amber-300  text-black"
+       
+       
+       >create project</Link>
 
           <div className="flex items-center gap-4">
             <div className="hidden sm:block text-right">

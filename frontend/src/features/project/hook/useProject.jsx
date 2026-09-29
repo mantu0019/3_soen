@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { projectCreateUser } from "../state/projectAction";
+import { getProjectUser, projectCreateUser } from "../state/projectAction";
 
 export const useProject = () => {
   const { projectData, isLoading, error } = useSelector(
@@ -13,5 +13,11 @@ export const useProject = () => {
     return dispatch(projectCreateUser(data)).unwrap();
   },[dispatch]);
 
-  return { createProjectByUser, projectData,isLoading,error };
+  const getProjectByUser = useCallback(()=>{
+
+      return dispatch(getProjectUser()).unwrap()
+  },[dispatch])
+
+
+  return { createProjectByUser, projectData,isLoading,error,getProjectByUser };
 };
