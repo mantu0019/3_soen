@@ -26,3 +26,36 @@ export const getProject = async () => {
     throw error;
   }
 };
+
+export const addUser = async ({ projectId, user }) => {
+  try {
+    const res = await api.put("/api/project/add-user", {
+      projectId,
+      user,
+    });
+
+    return res.data;
+  } catch (error) {
+    console.log(
+      "addUser failed:",
+      error?.response?.data?.message || error?.message,
+    );
+
+    throw error;
+  }
+};
+
+export const removeProject = async ({ projectId, user }) => {
+  try {
+    const res = await api.put("/api/project/remove-user", {
+      projectId,
+      user,
+    });
+    return res.data;
+  } catch (error) {
+    console.log(
+      "Remove User Failed :",
+      error?.response?.data?.message || error?.message,
+    );
+  }
+};

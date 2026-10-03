@@ -1,0 +1,134 @@
+// import { useParams } from "react-router";
+// import { api } from "../../../app/api";
+// import {
+//   RiAddLargeFill,
+//   RiCloseCircleFill,
+//   RiCloseLargeLine,
+//   RiGroupFill,
+//   RiSendPlaneFill,
+//   RiUserFill,
+// } from "react-icons/ri";
+// import { useState } from "react";
+
+// const DetailProject = () => {
+//   const { projectId } = useParams();
+//   const [isSlidePanel, setIsSlidePanel] = useState(false);
+
+//   const getProjectById = async () => {
+//     const res = await api.get(`/api/project/get-project/${projectId}`);
+
+//     console.log(res.data);
+//   };
+
+//   return (
+//     <>
+//       <main className="w-full h-screen bg-gray-400 flex">
+//         {/* LEFT CHAT PANEL */}
+//         <div className="w-[25%] relative bg-slate-650 h-screen flex flex-col">
+//           {/* HEADER */}
+//           <header className="bg-slate-200 p-4 flex items-center justify-between">
+
+//             <button className=" text-[18px] flex gap-1 items-center justify-center  active:scale-95 transition-all duration-200"
+            
+//               onClick={()=>{
+//                 alert("clicked")
+//               }}
+//             >
+        
+//                 <RiAddLargeFill />
+//               Add Collaborator
+//             </button>
+
+
+//             <RiGroupFill
+//               onClick={() => setIsSlidePanel(!isSlidePanel)}
+//               className="text-xl active:scale-90"
+//             />
+//           </header>
+
+//           {/* CONVERSATION AREA */}
+//           <div className="conversation-area flex flex-col flex-1">
+//             {/* MESSAGE BOX */}
+//             <div className="msg-box flex-1 flex flex-col gap-3 overflow-y-auto overflow-x-hidden p-3">
+//               {/* incomming-msg */}
+
+//               <div className="incoming-msg bg-white rounded px-3 py-2 max-w-[80%]">
+//                 <small className="text-xs text-gray-500">mantu@gmail.com</small>
+
+//                 <p className="break-words whitespace-normal">
+//                   Lorem ipsum dolor sit amet consectetur adipisicing
+//                 </p>
+//               </div>
+
+//               {/* outcoming-msg */}
+//               <div className=" ml-18 outcoming-msg bg-gray-200 rounded px-3 py-2 max-w-[80%]">
+//                 <small className="text-xs text-gray-500">
+//                   vishal@gmail.com
+//                 </small>
+
+//                 <p className="break-words whitespace-normal">
+//                   Lorem ipsum dolor sit amet consectetur adipisicing
+//                 </p>
+//               </div>
+//             </div>
+
+//             {/* INPUT FIELD */}
+//             <div className="input-field flex items-center p-2 gap-2">
+//               <input
+//                 className="bg-white px-2.5 py-2 rounded flex-1 outline-none"
+//                 placeholder="Enter Your Message"
+//               />
+
+//               <button
+//                 className="flex items-center justify-center gap-1
+//                 bg-slate-100 rounded px-3.5 py-2
+//                 active:scale-95"
+//               >
+//                 Send
+//                 <RiSendPlaneFill />
+//               </button>
+//             </div>
+//           </div>
+
+//           <div
+//             className={` absolute
+//     top-0
+//     left-0
+//     w-full
+//     h-screen
+//     bg-slate-200
+//     flex
+//     flex-col
+//     transform
+//     transition-transform
+//     duration-500
+//     ease-in-out
+//     ${isSlidePanel ? "translate-x-0" : "-translate-x-full"}    `}
+//           >
+//             <header className=" flex  bg-slate-300 items-center justify-end p-3 ">
+//               <RiCloseLargeLine
+//                 onClick={() => setIsSlidePanel(false)}
+//                 className=" text-left text-2xl active:scale-85 font-black  hover:bg-black transition-all duration-300 hover:text-white  "
+//               />{" "}
+//             </header>
+
+//             <div className="users flex items-center gap-1.5 p-2.5 transition-all duration-300  hover:bg-slate-400">
+//               <span className=" w-[35px] h-[35px] bg-slate-300 flex items-center justify-center rounded-full">
+//                 <RiUserFill className=" text-xl " />
+//               </span>
+
+//               <span>Username</span>
+//             </div>
+//           </div>
+//         </div>
+
+//         {/* RIGHT PANEL */}
+//         <div className="w-[75%] h-screen bg-red-500"></div>
+//       </main>
+//     </>
+//   );
+// };
+
+// export default DetailProject;
+
+

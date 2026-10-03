@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
+  getAllUsers,
   getMeUser,
   loginUser,
   logOutUser,
@@ -33,6 +34,12 @@ export const useAuth = () => {
     return dispatch(logOutUser()).unwrap();
   }, [dispatch]);
 
+  const allUserData = useCallback(()=>{
+
+   return dispatch(getAllUsers()).unwrap();
+
+  },[dispatch])
+
   return {
     authData,
     isLoading,
@@ -41,5 +48,6 @@ export const useAuth = () => {
     registerByUser,
     loginByUser,
     getMeByUser,
+    allUserData
   };
 };

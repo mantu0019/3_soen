@@ -45,3 +45,22 @@ export const logOut = async () => {
     throw error;
   }
 };
+
+
+
+export const getAllUser = async () => {
+  try {
+
+    const res  = await api.get("/api/auth/allUser");
+
+    return res.data;
+
+
+  } catch (error) {
+    console.log(
+      "get all User :",
+      error?.response?.data?.message || error?.message,
+    );
+    throw error;
+  }
+};

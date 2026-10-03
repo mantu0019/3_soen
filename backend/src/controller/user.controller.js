@@ -124,8 +124,8 @@ export const logOutController = asyncHandler(async (req, res) => {
 });
 
 export const getAllUserController = asyncHandler(async (req, res) => {
-  console.log("chala main")
-  const loggedInUser = await userModel.findOne({ _id: req.user._id });
+  
+   const loggedInUser = await userModel.findOne({ _id: req.user._id });
   const getAllUser = await userModel.find({
     _id: { $ne: loggedInUser._id },
   });

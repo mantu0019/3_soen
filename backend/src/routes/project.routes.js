@@ -11,6 +11,7 @@ import {
   createProject,
   getAllProject,
   getProjectController,
+  removeUserFromProject,
 } from "../controller/project.controller.js";
 
 const projectRouter = Router();
@@ -21,10 +22,9 @@ projectRouter.post(
   validate,
   authMiddleware,
   createProject,
-);
+); // done
 
-
-projectRouter.get("/get", authMiddleware, getAllProject);
+projectRouter.get("/get", authMiddleware, getAllProject); // done
 projectRouter.put(
   "/add-user",
   addUserValidator,
@@ -37,6 +37,14 @@ projectRouter.get(
   "/get-project/:projectId",
   authMiddleware,
   getProjectController,
+); // done
+
+projectRouter.put(
+  "/remove-user",
+  addUserValidator,
+  validate,
+  authMiddleware,
+  removeUserFromProject,
 );
 
 export default projectRouter;

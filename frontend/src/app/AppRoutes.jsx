@@ -5,6 +5,7 @@ import Register from "../features/auth/pages/Register";
 import PrivateLayout from "../components/PrivateLayout";
 import Home from "../components/Home";
 import Project from "../features/project/pages/Project";
+import DetailProject from "../features/project/pages/DetailProject";
  
 export const router =createBrowserRouter([
     {path:"/",
@@ -29,6 +30,10 @@ export const router =createBrowserRouter([
             },{
             path:"project",
             element:<Project/>
+            }
+            ,{
+                path:":projectId",
+                element:<DetailProject/>
             }
         ]
     }

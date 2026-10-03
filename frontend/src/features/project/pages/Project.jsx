@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useProject } from "../hook/useProject";
+import { RiUserFill } from "react-icons/ri";
+import { useNavigate } from "react-router";
 
 const Project = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [getAllProject, setGetAllProject] = useState([]);
-
+     const navigate  =    useNavigate();
   const { isLoading, error, createProjectByUser, getProjectByUser } =
     useProject();
 
@@ -22,8 +24,7 @@ const Project = () => {
     const getProjectData = async () => {
       try {
         const res = await getProjectByUser();
-        console.log("🚀 ~ getProjectData ~ res:", res)
-        setGetAllProject((res?.allProductName || []).filter(Boolean));
+         setGetAllProject((res?.allProductName || []).filter(Boolean));
       } catch (err) {
         console.log("Get project error:", err);
         setGetAllProject([]);
@@ -34,83 +35,24 @@ const Project = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ================= CREATE PROJECT =================
-  // const onSubmit = async (data) => {
-  //   try {
-  //     const res = await createProjectByUser({
-  //       name: data.name.trim(),
-  //     });
+  const onSubmit = async (data) => {
+    try {
+      const res = await createProjectByUser({
+        name: data.name.trim(),
+      });
 
-  //     console.log("CREATE RESPONSE:", res);
+      const createdProject = res?.newProject ?? res?.data?.newProject;
 
-  //     // response ka shape jo bhi ho, project nikal lo
-  //     const created = res?.project ?? res?.data?.project ?? res;
+      if (createdProject?._id && createdProject?.name) {
+        setGetAllProject((prev) => [...prev, createdProject]);
+      }
 
-  //     if (created && created.name) {
-  //       setGetAllProject((prev) => [...prev, created]);
-  //     }
-
-  //     reset();
-  //     setIsModalOpen(false);
-  //   } catch (err) {
-  //     console.log("Create project error:", err);
-  //   }
-  // };
-
-// const onSubmit = async (data) => {
-//   try {
-//     const res = await createProjectByUser({
-//       name: data.name.trim(),
-//     });
-
-//     console.log("CREATE RESPONSE:", res);
-
-//     // API response se created project nikalo
-//     const createdProject =
-//       res?.project ||
-//       res?.data?.project ||
-//       res?.data ||
-//       res;
-
-//     console.log("CREATED PROJECT:", createdProject);
-
-//     // Immediately UI update
-//     if (createdProject?._id && createdProject?.name) {
-//       setGetAllProject((prev) => [
-//         ...prev,
-//         createdProject,
-//       ]);
-//     }
-
-//     reset();
-//     setIsModalOpen(false);
-//   } catch (err) {
-//     console.log("Create project error:", err);
-//   }
-// };
-
-
-
-const onSubmit = async (data) => {
-  try {
-    const res = await createProjectByUser({
-      name: data.name.trim(),
-    });
-
-    const createdProject = res?.newProject ?? res?.data?.newProject;
-
-    if (createdProject?._id && createdProject?.name) {
-      setGetAllProject((prev) => [...prev, createdProject]);
+      reset();
+      setIsModalOpen(false);
+    } catch (err) {
+      console.log("Create project er ror:", err);
     }
-
-    reset();
-    setIsModalOpen(false);
-  } catch (err) {
-    console.log("Create project error:", err);
-  }
-};
-
-
+  };
 
   // ================= CLOSE MODAL =================
   const closeModal = () => {
@@ -187,6 +129,10 @@ const onSubmit = async (data) => {
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {getAllProject.filter(Boolean).map((project, index) => (
                 <div
+                    onClick={()=>{
+                         navigate(`/dash/${project._id}`)
+                     }}
+
                   key={project._id ?? index}
                   className="group rounded-2xl border border-white/10 bg-white/[0.025] p-5 transition duration-300 hover:-translate-y-1 hover:border-[#F7FF72]/30 hover:bg-white/[0.04]"
                 >
@@ -205,8 +151,14 @@ const onSubmit = async (data) => {
                   </div>
 
                   {/* PROJECT NAME */}
-                  <h3 className="mt-5 text-lg font-semibold">
+                  <h3 className="mt-5 text-lg font-semibold flex gap-3">
                     {project?.name}
+
+                    <span className=" flex items-center justify-center gap-2">
+                       Collaborator
+                      <RiUserFill />
+                      {project?.user.length}
+                    </span>
                   </h3>
 
                   <p className="mt-1 text-xs text-gray-500">Project</p>
