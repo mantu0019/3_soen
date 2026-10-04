@@ -187,10 +187,7 @@ const DetailProject = () => {
   };
 
   const hasChanges = selectedUsers.length > 0 || removeUserIds.length > 0;
-
-  // ==========================================
-  // RETURN
-  // ==========================================
+ 
 
   return (
     <>
@@ -266,7 +263,20 @@ const DetailProject = () => {
               isSlidePanel ? "translate-x-0" : "-translate-x-full"
             }`}
           >
-            <header className="flex bg-[#15171D] items-center justify-end p-3 sm:p-4 border-b border-[#24262D] shrink-0">
+            <header className="flex bg-[#15171D] items-center justify-between p-3 sm:p-4 border-b border-[#24262D] shrink-0">
+          <h1
+  className="
+    font-sans
+    text-[22px]
+    uppercase
+    text-yellow-300
+    tracking-[2px]
+     text-bold
+    drop-shadow-sm
+  "
+>
+  Collaborators
+</h1>
               <RiCloseLargeLine
                 onClick={() => setIsSlidePanel(false)}
                 className="text-2xl text-white active:scale-85 font-black hover:bg-white hover:text-black rounded-full p-1 transition-all duration-300 cursor-pointer"
@@ -289,10 +299,8 @@ const DetailProject = () => {
                     </span>
 
                     <div className="flex flex-col min-w-0">
-                      <span className="font-semibold text-white truncate">
-                        {user?.username || "Unknown User"}
-                      </span>
-
+                      
+ {console.log("helllo",user)}
                       <small className="text-gray-500 truncate">
                         {user?.email || ""}
                       </small>
