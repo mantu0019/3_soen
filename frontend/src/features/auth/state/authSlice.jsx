@@ -1,12 +1,13 @@
 import { createSlice } from "@reduxjs/toolkit";
 import { getAllUsers, getMeUser, loginUser, logOutUser, registerUser } from "./authAction";
-
+ 
 const authSlice = createSlice({
     name:"auth",
     initialState:{
         authData:null,
+     
         isLoading:true,
-        error:null
+        error:null,
     },
     extraReducers:(builder)=>{
         return builder.addCase(registerUser.pending,(state,action)=>{
@@ -14,6 +15,7 @@ const authSlice = createSlice({
              state.error = null
         }).addCase(registerUser.fulfilled,(state,action)=>{
             state.isLoading = false,
+            
             state.authData = action.payload,
             state.error     = null
         }).addCase(registerUser.rejected,(state,action)=>{
@@ -25,8 +27,10 @@ const authSlice = createSlice({
               state.isLoading = true,
               state.error = null
        }).addCase(loginUser.fulfilled,(state,action)=>{
+        console.log("login..",action.payload)
         state.isLoading = false,
         state.authData = action.payload,
+        
         state.error   = null
        }).addCase(loginUser.rejected,(state,action)=>{
         state.isLoading = false,
@@ -53,6 +57,7 @@ const authSlice = createSlice({
         .addCase(logOutUser.fulfilled,(state)=>{
             state.error = false,
             state.authData  = null,
+            state.accessToken = null,
          state.isLoading = null
         }).addCase(getAllUsers.pending,(state)=>{
          state.isLoading    = false,

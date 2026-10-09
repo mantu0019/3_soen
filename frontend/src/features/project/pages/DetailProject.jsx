@@ -1,4 +1,4 @@
- import { useParams } from "react-router";
+import { useParams } from "react-router";
 import { api } from "../../../app/api";
 
 import {
@@ -13,40 +13,29 @@ import {
 import { useEffect, useState } from "react";
 import { useAuth } from "../../auth/hooks/useAuth";
 import { useProject } from "../hook/useProject";
+import {
+  initializeSocket,
+  sendMessage,
+  receiveMessage,
+} from "../../../config/socket";
 
-// String ID ho ya object, dono se ID nikaal lega
 const getId = (u) => (typeof u === "string" ? u : (u?._id ?? u?.id));
 
 const DetailProject = () => {
   const { projectId } = useParams();
-  const { allUserData } = useAuth();
+  const { allUserData, getMeByUser } = useAuth();
   const { addUserInCollaborator, removeProjectByUser } = useProject();
-
-  // ==========================================
-  // STATES
-  // ==========================================
 
   const [isSlidePanel, setIsSlidePanel] = useState(false);
   const [isCollaboratorModal, setIsCollaboratorModal] = useState(false);
-
-  // Saare users
   const [users, setUsers] = useState([]);
-
-  // DB me jo collaborators already hain
   const [collaborators, setCollaborators] = useState([]);
-
-  // Modal: naye select kiye hue users (add ke liye)
   const [selectedUsers, setSelectedUsers] = useState([]);
-
-  // Modal: existing collaborators jinko remove karna hai (IDs)
   const [removeUserIds, setRemoveUserIds] = useState([]);
-
   const [isSaving, setIsSaving] = useState(false);
+  const [message, setMessage] = useState("");
 
-  // ==========================================
-  // GET ALL USERS
-  // ==========================================
-
+   
   useEffect(() => {
     const getData = async () => {
       try {
@@ -60,11 +49,23 @@ const DetailProject = () => {
     getData();
   }, [allUserData]);
 
-  // ==========================================
-  // GET PROJECT + EXISTING COLLABORATORS
-  // ==========================================
+ useEffect(() => {
+  if (!projectId) return;
+
+  initializeSocket(projectId);
+
+  receiveMessage("project-message", (data) => {
+    console.log("RECEIVED:", data);
+  });
+
+}, [projectId]);
+
+
+
+
 
   useEffect(() => {
+      
     const getProjectById = async () => {
       try {
         const res = await api.get(`/api/project/get-project/${projectId}`);
@@ -72,10 +73,10 @@ const DetailProject = () => {
 
         const ids = projectUsers.map(getId).filter(Boolean);
 
-        // All users me se match karo
+         
         const matched = users.filter((u) => ids.includes(getId(u)));
 
-        // Backend ne populate kiya ho to wo objects
+         
         const populated = projectUsers.filter(
           (u) => typeof u === "object" && getId(u),
         );
@@ -87,19 +88,13 @@ const DetailProject = () => {
     };
 
     if (projectId && users.length > 0) getProjectById();
-  }, [projectId, users]);
-
-  // ==========================================
-  // SELECT / UNSELECT USER (MODAL)
-  // ==========================================
+  }, [projectId, users,initializeSocket]);
 
   const handleSelectUser = (user) => {
     const userId = getId(user);
     if (!userId) return;
 
-    const alreadyCollaborator = collaborators.some(
-      (c) => getId(c) === userId,
-    );
+    const alreadyCollaborator = collaborators.some((c) => getId(c) === userId);
 
     // Existing collaborator: click 1 -> remove mark, click 2 -> unmark
     if (alreadyCollaborator) {
@@ -122,10 +117,6 @@ const DetailProject = () => {
       return [...prev, user];
     });
   };
-
-  // ==========================================
-  // SAVE CHANGES (ADD + REMOVE)
-  // ==========================================
 
   const handleSaveChanges = async () => {
     if (isSaving) return;
@@ -170,9 +161,20 @@ const DetailProject = () => {
     }
   };
 
-  // ==========================================
-  // OPEN / CLOSE MODAL
-  // ==========================================
+  const sendMsg = async(e) => {
+     e.preventDefault();   
+
+     const res = await getMeByUser();
+     let  userId = res.userDetail._id;
+      
+     sendMessage("project-message",{
+      message,
+      sender:userId,
+    });
+   
+ 
+    setMessage("");
+  };
 
   const openCollaboratorModal = () => {
     setSelectedUsers([]);
@@ -187,7 +189,6 @@ const DetailProject = () => {
   };
 
   const hasChanges = selectedUsers.length > 0 || removeUserIds.length > 0;
- 
 
   return (
     <>
@@ -213,8 +214,8 @@ const DetailProject = () => {
               className="text-xl text-white cursor-pointer hover:text-[#F7FF72] active:scale-90 transition"
             />
           </header>
-
-          {/* CONVERSATION AREA */}
+    
+      
 
           <div className="conversation-area flex flex-col flex-1 min-h-0">
             {/* MESSAGE BOX */}
@@ -233,7 +234,9 @@ const DetailProject = () => {
               {/* OUTGOING MESSAGE */}
 
               <div className="ml-auto outcoming-msg bg-[#F7FF72] text-black rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 max-w-[90%] sm:max-w-[80%] break-words">
-                <small className="text-xs text-gray-700">vishal@gmail.com</small>
+                <small className="text-xs text-gray-700">
+                  vishal@gmail.com
+                </small>
 
                 <p className="break-words whitespace-normal mt-1 text-sm sm:text-base">
                   Lorem ipsum dolor sit amet consectetur
@@ -245,11 +248,20 @@ const DetailProject = () => {
 
             <div className="input-field flex items-center p-2 sm:p-3 gap-2 bg-[#0F1115] border-t border-[#24262D] shrink-0">
               <input
+                value={message}
+                onChange={(e) => {
+                  setMessage(e.target.value);
+                }}
                 className="min-w-0 bg-[#15171D] text-white placeholder:text-gray-500 px-3 sm:px-4 py-2.5 sm:py-3 rounded-full flex-1 outline-none border border-[#24262D] focus:border-[#F7FF72] transition text-sm sm:text-base"
                 placeholder="Enter Your Message"
               />
 
-              <button className="shrink-0 flex items-center justify-center gap-1.5 bg-[#F7FF72] text-black font-semibold rounded-full px-3 sm:px-5 py-2.5 sm:py-3 active:scale-95 hover:opacity-90 transition">
+              <button
+                onClick={() => {
+                  sendMsg();
+                }}
+                className="shrink-0 flex items-center justify-center gap-1.5 bg-[#F7FF72] text-black font-semibold rounded-full px-3 sm:px-5 py-2.5 sm:py-3 active:scale-95 hover:opacity-90 transition"
+              >
                 <span className="hidden sm:inline">Send</span>
                 <RiSendPlaneFill />
               </button>
@@ -264,8 +276,8 @@ const DetailProject = () => {
             }`}
           >
             <header className="flex bg-[#15171D] items-center justify-between p-3 sm:p-4 border-b border-[#24262D] shrink-0">
-          <h1
-  className="
+              <h1
+                className="
     font-sans
     text-[22px]
     uppercase
@@ -274,9 +286,9 @@ const DetailProject = () => {
      text-bold
     drop-shadow-sm
   "
->
-  Collaborators
-</h1>
+              >
+                Collaborators
+              </h1>
               <RiCloseLargeLine
                 onClick={() => setIsSlidePanel(false)}
                 className="text-2xl text-white active:scale-85 font-black hover:bg-white hover:text-black rounded-full p-1 transition-all duration-300 cursor-pointer"
@@ -299,8 +311,6 @@ const DetailProject = () => {
                     </span>
 
                     <div className="flex flex-col min-w-0">
-                      
- {console.log("helllo",user)}
                       <small className="text-gray-500 truncate">
                         {user?.email || ""}
                       </small>

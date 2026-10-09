@@ -26,10 +26,7 @@ export const registerController = asyncHandler(async (req, res) => {
   });
 
   if (!user) {
-    return res.status(401).json({
-      success: false,
-      message: "User not create some reason",
-    });
+     throw new AppError("user not created some reason")
   }
 
   const token = jwt.sign(
@@ -50,6 +47,7 @@ export const registerController = asyncHandler(async (req, res) => {
     success: true,
     message: "user Register successfully",
     userDetail,
+    token
   });
 });
 
@@ -90,6 +88,7 @@ export const loginController = asyncHandler(async (req, res) => {
     success: true,
     message: "User login Successfully",
     userDetail,
+    token
   });
 });
 

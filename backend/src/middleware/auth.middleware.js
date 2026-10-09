@@ -2,16 +2,14 @@ import jwt from "jsonwebtoken";
 import userModel from "../models/user.model.js";
 import envConfig from "../config/env.js";
 import redisClient from "../services/redies.services.js";
+import AppError from "../utils/appError.js";
  
 const authMiddleware = async (req, res, next) => {
   try {
-    const token = req?.cookies?.token;
+    const token =  req?.cookies?.token;
 
     if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized User",
-      });
+      throw new AppError("Unauthorized User",401)
     }
    const isBlacklisting = await redisClient.get(token);
     if(isBlacklisting){
@@ -30,10 +28,7 @@ const authMiddleware = async (req, res, next) => {
     const userDetail = await userModel.findById(decode.id).select("-password");
 
     if (!userDetail) {
-      return res.status(401).json({
-        success: false,
-        message: "User not found",
-      });
+       throw new AppError("User not Found")
     }
 
     req.user = userDetail;

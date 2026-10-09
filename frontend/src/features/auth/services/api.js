@@ -1,6 +1,8 @@
  
 import { api } from "../../../app/api";
+  
  
+
 export const register = async ({ email, password }) => {
   try {
     const res = await api.post("/api/auth/register", { email, password });
