@@ -1,3 +1,4 @@
+ 
 import { useParams } from "react-router";
 import { api } from "../../../app/api";
 
@@ -10,36 +11,99 @@ import {
   RiCheckLine,
 } from "react-icons/ri";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
 import { useAuth } from "../../auth/hooks/useAuth";
 import { useProject } from "../hook/useProject";
+
 import {
   initializeSocket,
   sendMessage,
-  receiveMessage,
 } from "../../../config/socket";
 
-const getId = (u) => (typeof u === "string" ? u : (u?._id ?? u?.id));
+const getId = (user) => {
+  return typeof user === "string"
+    ? user
+    : user?._id ?? user?.id;
+};
 
 const DetailProject = () => {
   const { projectId } = useParams();
+
   const { allUserData, getMeByUser } = useAuth();
-  const { addUserInCollaborator, removeProjectByUser } = useProject();
+
+  const {
+    addUserInCollaborator,
+    removeProjectByUser,
+  } = useProject();
+
+  // ================= STATES =================
 
   const [isSlidePanel, setIsSlidePanel] = useState(false);
-  const [isCollaboratorModal, setIsCollaboratorModal] = useState(false);
+
+  const [isCollaboratorModal, setIsCollaboratorModal] =
+    useState(false);
+
   const [users, setUsers] = useState([]);
+
   const [collaborators, setCollaborators] = useState([]);
+
   const [selectedUsers, setSelectedUsers] = useState([]);
+
   const [removeUserIds, setRemoveUserIds] = useState([]);
+
   const [isSaving, setIsSaving] = useState(false);
+
   const [message, setMessage] = useState("");
 
-   
+  const [messages, setMessages] = useState([]);
+
+  const [currentUserId, setCurrentUserId] = useState(null);
+
+  const [isSending, setIsSending] = useState(false);
+
+  // ================= REFS =================
+
+  const msgRef = useRef(null);
+
+  const currentUserIdRef = useRef(null);
+
+  // ================= CURRENT USER =================
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const getCurrentUser = async () => {
+      try {
+        const res = await getMeByUser();
+
+        const userId = res?.userDetail?._id;
+
+        if (userId && isMounted) {
+          const id = String(userId);
+
+          setCurrentUserId(id);
+          currentUserIdRef.current = id;
+        }
+      } catch (error) {
+        console.error("Failed to get current user:", error);
+      }
+    };
+
+    getCurrentUser();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [getMeByUser]);
+
+  // ================= GET ALL USERS =================
+
   useEffect(() => {
     const getData = async () => {
       try {
         const res = await allUserData();
+
         setUsers(res?.getAllUser || []);
       } catch (error) {
         console.error("Failed to fetch users:", error);
@@ -49,253 +113,457 @@ const DetailProject = () => {
     getData();
   }, [allUserData]);
 
- useEffect(() => {
-  if (!projectId) return;
+  // ================= APPEND MESSAGE =================
 
-  initializeSocket(projectId);
+  const appendIncomingMessage = (msgObj) => {
+    if (!msgObj?.message) {
+      console.log("Invalid message:", msgObj);
+      return;
+    }
 
-  receiveMessage("project-message", (data) => {
-    console.log("RECEIVED:", data);
-  });
+    setMessages((prevMessages) => [
+      ...prevMessages,
+      msgObj,
+    ]);
+  };
 
-}, [projectId]);
-
-
-
-
+  // ================= SOCKET CONNECTION =================
 
   useEffect(() => {
-      
+    if (!projectId) return;
+
+    const socket = initializeSocket(projectId);
+
+    if (!socket) {
+      console.error("Socket initialization failed");
+      return;
+    }
+
+    const handleMessage = (data) => {
+      console.log("RECEIVED MESSAGE:", data);
+
+      if (!data?.message) {
+        console.log("Invalid socket payload:", data);
+        return;
+      }
+
+      // Agar server sender ko bhi message broadcast karta hai,
+      // toh sender ke local message ko dobara add mat karo.
+      const senderId = getId(data.sender);
+
+      if (
+        senderId &&
+        currentUserIdRef.current &&
+        String(senderId) === currentUserIdRef.current
+      ) {
+        return;
+      }
+
+      // Receiver ke UI mein message add karo.
+      appendIncomingMessage(data);
+    };
+
+    socket.on("project-message", handleMessage);
+
+    return () => {
+      socket.off("project-message", handleMessage);
+
+      socket.disconnect();
+    };
+  }, [projectId]);
+
+  // ================= AUTO SCROLL =================
+
+  useEffect(() => {
+    const msgBox = msgRef.current;
+
+    if (!msgBox) return;
+
+    msgBox.scrollTop = msgBox.scrollHeight;
+  }, [messages]);
+
+  // ================= FETCH PROJECT =================
+
+  useEffect(() => {
+    if (!projectId || users.length === 0) return;
+
     const getProjectById = async () => {
       try {
-        const res = await api.get(`/api/project/get-project/${projectId}`);
-        const projectUsers = res?.data?.project?.user || [];
-
-        const ids = projectUsers.map(getId).filter(Boolean);
-
-         
-        const matched = users.filter((u) => ids.includes(getId(u)));
-
-         
-        const populated = projectUsers.filter(
-          (u) => typeof u === "object" && getId(u),
+        const res = await api.get(
+          `/api/project/get-project/${projectId}`
         );
 
-        setCollaborators(matched.length > 0 ? matched : populated);
+        const projectUsers =
+          res?.data?.project?.user || [];
+
+        const ids = projectUsers
+          .map(getId)
+          .filter(Boolean)
+          .map(String);
+
+        const matched = users.filter((user) =>
+          ids.includes(String(getId(user)))
+        );
+
+        const populated = projectUsers.filter(
+          (user) =>
+            typeof user === "object" && getId(user)
+        );
+
+        setCollaborators(
+          matched.length > 0 ? matched : populated
+        );
       } catch (error) {
         console.error("Get project failed:", error);
       }
     };
 
-    if (projectId && users.length > 0) getProjectById();
-  }, [projectId, users,initializeSocket]);
+    getProjectById();
+  }, [projectId, users]);
+
+  // ================= SELECT COLLABORATOR =================
 
   const handleSelectUser = (user) => {
     const userId = getId(user);
+
     if (!userId) return;
 
-    const alreadyCollaborator = collaborators.some((c) => getId(c) === userId);
+    const normalizedId = String(userId);
 
-    // Existing collaborator: click 1 -> remove mark, click 2 -> unmark
+    const alreadyCollaborator = collaborators.some(
+      (collaborator) =>
+        String(getId(collaborator)) === normalizedId
+    );
+
+    // Existing collaborator: mark for removal.
     if (alreadyCollaborator) {
       setRemoveUserIds((prev) =>
-        prev.includes(userId)
-          ? prev.filter((id) => id !== userId)
-          : [...prev, userId],
+        prev.includes(normalizedId)
+          ? prev.filter((id) => id !== normalizedId)
+          : [...prev, normalizedId]
       );
+
       return;
     }
 
-    // Naya user: click 1 -> select, click 2 -> unselect
+    // New collaborator: select or unselect.
     setSelectedUsers((prev) => {
-      const alreadySelected = prev.some((s) => getId(s) === userId);
+      const alreadySelected = prev.some(
+        (selectedUser) =>
+          String(getId(selectedUser)) === normalizedId
+      );
 
       if (alreadySelected) {
-        return prev.filter((s) => getId(s) !== userId);
+        return prev.filter(
+          (selectedUser) =>
+            String(getId(selectedUser)) !== normalizedId
+        );
       }
 
       return [...prev, user];
     });
   };
 
+  // ================= SAVE COLLABORATORS =================
+
   const handleSaveChanges = async () => {
     if (isSaving) return;
+
     if (!projectId) return;
-    if (selectedUsers.length === 0 && removeUserIds.length === 0) return;
+
+    if (
+      selectedUsers.length === 0 &&
+      removeUserIds.length === 0
+    ) {
+      return;
+    }
 
     try {
       setIsSaving(true);
 
       // ---------- ADD ----------
-      if (selectedUsers.length > 0) {
-        const userIds = selectedUsers.map(getId).filter(Boolean);
 
-        await addUserInCollaborator({ projectId, user: userIds });
+      if (selectedUsers.length > 0) {
+        const userIds = selectedUsers
+          .map(getId)
+          .filter(Boolean);
+
+        await addUserInCollaborator({
+          projectId,
+          user: userIds,
+        });
 
         setCollaborators((prev) => {
-          const prevIds = prev.map(getId).filter(Boolean);
+          const previousIds = prev
+            .map(getId)
+            .filter(Boolean)
+            .map(String);
 
-          const newOnes = selectedUsers.filter((s) => {
-            const id = getId(s);
-            return id && !prevIds.includes(id);
-          });
+          const newUsers = selectedUsers.filter(
+            (selectedUser) => {
+              const id = getId(selectedUser);
 
-          return [...prev, ...newOnes];
+              return (
+                id &&
+                !previousIds.includes(String(id))
+              );
+            }
+          );
+
+          return [...prev, ...newUsers];
         });
       }
 
       // ---------- REMOVE ----------
+
       if (removeUserIds.length > 0) {
-        await removeProjectByUser({ projectId, user: removeUserIds });
+        await removeProjectByUser({
+          projectId,
+          user: removeUserIds,
+        });
 
         setCollaborators((prev) =>
-          prev.filter((c) => !removeUserIds.includes(getId(c))),
+          prev.filter(
+            (collaborator) =>
+              !removeUserIds.includes(
+                String(getId(collaborator))
+              )
+          )
         );
       }
 
       closeCollaboratorModal();
     } catch (error) {
-      console.error("Failed to update collaborators:", error);
+      console.error(
+        "Failed to update collaborators:",
+        error
+      );
     } finally {
       setIsSaving(false);
     }
   };
 
-  const sendMsg = async(e) => {
-     e.preventDefault();   
+  // ================= SEND MESSAGE =================
 
-     const res = await getMeByUser();
-     let  userId = res.userDetail._id;
-      
-     sendMessage("project-message",{
-      message,
-      sender:userId,
-    });
-   
- 
-    setMessage("");
+  const sendMsg = async () => {
+    const text = message.trim();
+
+    if (!text || isSending) return;
+
+    try {
+      setIsSending(true);
+
+      // Get current user ID.
+      let userId = currentUserIdRef.current;
+
+      if (!userId) {
+        const res = await getMeByUser();
+
+        userId = res?.userDetail?._id;
+
+        if (!userId) {
+          console.error("User ID not found");
+          return;
+        }
+
+        userId = String(userId);
+
+        currentUserIdRef.current = userId;
+        setCurrentUserId(userId);
+      }
+
+      // Create message payload.
+      const newMessage = {
+        message: text,
+        sender: String(userId),
+      };
+
+      // 1. Immediately show the message in sender UI.
+      appendIncomingMessage(newMessage);
+
+      // 2. Send message to the server.
+      sendMessage("project-message", newMessage);
+
+      // 3. Clear input.
+      setMessage("");
+    } catch (error) {
+      console.error("Message send failed:", error);
+    } finally {
+      setIsSending(false);
+    }
   };
+
+  // ================= OPEN MODAL =================
 
   const openCollaboratorModal = () => {
     setSelectedUsers([]);
+
     setRemoveUserIds([]);
+
     setIsCollaboratorModal(true);
   };
 
+  // ================= CLOSE MODAL =================
+
   const closeCollaboratorModal = () => {
     setSelectedUsers([]);
+
     setRemoveUserIds([]);
+
     setIsCollaboratorModal(false);
   };
 
-  const hasChanges = selectedUsers.length > 0 || removeUserIds.length > 0;
+  // ================= CHANGE DETECTION =================
+
+  const hasChanges =
+    selectedUsers.length > 0 ||
+    removeUserIds.length > 0;
+
+  // ================= UI =================
 
   return (
     <>
-      {/* ================= MAIN ================= */}
+      <main className="custom-scrollbar w-full h-screen bg-[#0B0D10] text-white flex overflow-hidden">
 
-      <main className="w-full h-screen bg-[#0B0D10] text-white flex overflow-hidden">
         {/* ================= LEFT CHAT PANEL ================= */}
 
         <div className="w-full md:w-[380px] lg:w-[25%] shrink-0 relative bg-[#0F1115] h-screen flex flex-col border-r border-[#24262D]">
+
           {/* HEADER */}
 
           <header className="bg-[#0F1115] px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between border-b border-[#24262D] shrink-0">
+
             <button
-              className="text-sm sm:text-[15px] font-semibold flex gap-1.5 sm:gap-2 items-center justify-center text-white hover:text-[#F7FF72] active:scale-95 transition-all duration-200"
+              className="text-sm sm:text-[15px] font-semibold flex gap-2 items-center justify-center text-white hover:text-[#F7FF72] active:scale-95 transition-all"
               onClick={openCollaboratorModal}
             >
               <RiAddLargeFill />
+
               <span>Add Collaborator</span>
             </button>
 
             <RiGroupFill
-              onClick={() => setIsSlidePanel(!isSlidePanel)}
+              onClick={() =>
+                setIsSlidePanel((prev) => !prev)
+              }
               className="text-xl text-white cursor-pointer hover:text-[#F7FF72] active:scale-90 transition"
             />
+
           </header>
-    
-      
+
+          {/* ================= CONVERSATION ================= */}
 
           <div className="conversation-area flex flex-col flex-1 min-h-0">
+
             {/* MESSAGE BOX */}
 
-            <div className="msg-box flex-1 min-h-0 flex flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 sm:p-4">
-              {/* INCOMING MESSAGE */}
+            <div
+              ref={msgRef}
+              className="msg-box flex-1 min-h-0 flex flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 sm:p-4"
+            >
 
-              <div className="incoming-msg bg-[#15171D] text-white rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 max-w-[90%] sm:max-w-[80%] border border-[#24262D] break-words">
-                <small className="text-xs text-gray-400">mantu@gmail.com</small>
+              {messages.map((msg, index) => {
+                const senderId = getId(msg.sender);
 
-                <p className="break-words whitespace-normal mt-1 text-sm sm:text-base">
-                  Lorem ipsum dolor sit amet consectetur.
-                </p>
-              </div>
+                const isSender =
+                  currentUserId &&
+                  senderId &&
+                  String(senderId) ===
+                    String(currentUserId);
 
-              {/* OUTGOING MESSAGE */}
+                return (
+                  <div
+                    key={`${String(senderId || "user")}-${index}`}
+                    className={`rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 max-w-[90%] sm:max-w-[80%] break-words ${
+                      isSender
+                        ? "ml-auto bg-[#F7FF72] text-black"
+                        : "mr-auto bg-[#15171D] text-white border border-[#24262D]"
+                    }`}
+                  >
 
-              <div className="ml-auto outcoming-msg bg-[#F7FF72] text-black rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 max-w-[90%] sm:max-w-[80%] break-words">
-                <small className="text-xs text-gray-700">
-                  vishal@gmail.com
-                </small>
+                    <small
+                      className={`text-xs ${
+                        isSender
+                          ? "text-gray-700"
+                          : "text-gray-400"
+                      }`}
+                    >
+                      {isSender ? "You" : "Collaborator"}
+                    </small>
 
-                <p className="break-words whitespace-normal mt-1 text-sm sm:text-base">
-                  Lorem ipsum dolor sit amet consectetur
-                </p>
-              </div>
+                    <p className="break-words whitespace-pre-wrap mt-1 text-sm sm:text-base">
+                      {msg.message}
+                    </p>
+
+                  </div>
+                );
+              })}
+
             </div>
 
-            {/* INPUT FIELD */}
+            {/* ================= INPUT FIELD ================= */}
 
             <div className="input-field flex items-center p-2 sm:p-3 gap-2 bg-[#0F1115] border-t border-[#24262D] shrink-0">
+
               <input
                 value={message}
-                onChange={(e) => {
-                  setMessage(e.target.value);
+                onChange={(e) =>
+                  setMessage(e.target.value)
+                }
+                onKeyDown={(e) => {
+                  if (
+                    e.key === "Enter" &&
+                    !e.shiftKey
+                  ) {
+                    e.preventDefault();
+                    sendMsg();
+                  }
                 }}
                 className="min-w-0 bg-[#15171D] text-white placeholder:text-gray-500 px-3 sm:px-4 py-2.5 sm:py-3 rounded-full flex-1 outline-none border border-[#24262D] focus:border-[#F7FF72] transition text-sm sm:text-base"
                 placeholder="Enter Your Message"
               />
 
               <button
-                onClick={() => {
-                  sendMsg();
-                }}
-                className="shrink-0 flex items-center justify-center gap-1.5 bg-[#F7FF72] text-black font-semibold rounded-full px-3 sm:px-5 py-2.5 sm:py-3 active:scale-95 hover:opacity-90 transition"
+                onClick={sendMsg}
+                disabled={!message.trim() || isSending}
+                className="shrink-0 flex items-center justify-center gap-1.5 bg-[#F7FF72] text-black font-semibold rounded-full px-3 sm:px-5 py-2.5 sm:py-3 disabled:opacity-50 active:scale-95 hover:opacity-90 transition"
               >
-                <span className="hidden sm:inline">Send</span>
+                <span className="hidden sm:inline">
+                  {isSending ? "Sending..." : "Send"}
+                </span>
+
                 <RiSendPlaneFill />
               </button>
+
             </div>
+
           </div>
 
-          {/* ================= SLIDE PANEL (COLLABORATORS) ================= */}
+          {/* ================= COLLABORATOR SLIDE PANEL ================= */}
 
           <div
             className={`absolute top-0 left-0 w-full h-full bg-[#0F1115] flex flex-col transform transition-transform duration-500 ease-in-out z-20 ${
-              isSlidePanel ? "translate-x-0" : "-translate-x-full"
+              isSlidePanel
+                ? "translate-x-0"
+                : "-translate-x-full"
             }`}
           >
+
             <header className="flex bg-[#15171D] items-center justify-between p-3 sm:p-4 border-b border-[#24262D] shrink-0">
-              <h1
-                className="
-    font-sans
-    text-[22px]
-    uppercase
-    text-yellow-300
-    tracking-[2px]
-     text-bold
-    drop-shadow-sm
-  "
-              >
+
+              <h1 className="font-sans text-[22px] uppercase text-yellow-300 tracking-[2px] drop-shadow-sm">
                 Collaborators
               </h1>
+
               <RiCloseLargeLine
                 onClick={() => setIsSlidePanel(false)}
-                className="text-2xl text-white active:scale-85 font-black hover:bg-white hover:text-black rounded-full p-1 transition-all duration-300 cursor-pointer"
+                className="text-2xl text-white cursor-pointer hover:bg-white hover:text-black rounded-full p-1 transition-all duration-300"
               />
+
             </header>
 
             <div className="flex flex-col overflow-y-auto">
+
               {collaborators.length === 0 ? (
                 <p className="text-center text-gray-500 p-5">
                   No collaborators added
@@ -304,8 +572,9 @@ const DetailProject = () => {
                 collaborators.map((user) => (
                   <div
                     key={getId(user)}
-                    className="flex items-center gap-3 p-3 bg-[#15171D] border-b border-[#24262D] hover:bg-[#20232A] transition cursor-pointer"
+                    className="flex items-center gap-3 p-3 bg-[#15171D] border-b border-[#24262D] hover:bg-[#20232A] transition"
                   >
+
                     <span className="w-10 h-10 shrink-0 bg-[#20232A] flex items-center justify-center rounded-full">
                       <RiUserFill className="text-xl text-white" />
                     </span>
@@ -315,20 +584,25 @@ const DetailProject = () => {
                         {user?.email || ""}
                       </small>
                     </div>
+
                   </div>
                 ))
               )}
+
             </div>
+
           </div>
+
         </div>
 
         {/* ================= RIGHT PANEL ================= */}
 
         <div className="hidden md:flex flex-1 h-screen bg-[#0B0D10] items-center justify-center">
           <div className="text-gray-600 text-sm select-none">
-            not any conversation available about
+            Not any conversation available about
           </div>
         </div>
+
       </main>
 
       {/* ================= ADD / REMOVE COLLABORATOR MODAL ================= */}
@@ -338,13 +612,16 @@ const DetailProject = () => {
           className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4"
           onClick={closeCollaboratorModal}
         >
+
           <div
             className="w-full max-w-md max-h-[90vh] bg-[#15171D] text-white rounded-2xl border border-[#292C34] shadow-2xl overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
+
             {/* MODAL HEADER */}
 
             <header className="flex items-center justify-between p-4 sm:p-5 border-b border-[#292C34] shrink-0">
+
               <h2 className="text-lg sm:text-xl font-bold">
                 Manage Collaborators
               </h2>
@@ -353,27 +630,37 @@ const DetailProject = () => {
                 onClick={closeCollaboratorModal}
                 className="text-2xl cursor-pointer text-gray-400 hover:text-white hover:bg-[#292C34] rounded-full p-1 transition"
               />
+
             </header>
 
             {/* USER LIST */}
 
             <div className="max-h-[55vh] sm:max-h-[400px] overflow-y-auto p-2">
+
               {users.map((user) => {
                 const userId = getId(user);
 
+                const normalizedId = String(userId);
+
                 const isSelected = selectedUsers.some(
-                  (s) => getId(s) === userId,
+                  (selectedUser) =>
+                    String(getId(selectedUser)) ===
+                    normalizedId
                 );
 
-                const isAlreadyCollaborator = collaborators.some(
-                  (c) => getId(c) === userId,
-                );
+                const isAlreadyCollaborator =
+                  collaborators.some(
+                    (collaborator) =>
+                      String(getId(collaborator)) ===
+                      normalizedId
+                  );
 
-                const isMarkedForRemove = removeUserIds.includes(userId);
+                const isMarkedForRemove =
+                  removeUserIds.includes(normalizedId);
 
                 return (
                   <div
-                    key={userId}
+                    key={normalizedId}
                     onClick={() => handleSelectUser(user)}
                     className={`flex items-center justify-between gap-3 p-3 rounded-xl transition duration-200 cursor-pointer ${
                       isAlreadyCollaborator
@@ -385,41 +672,54 @@ const DetailProject = () => {
                           : "hover:bg-[#20232A]"
                     }`}
                   >
+
                     {/* USER INFO */}
 
                     <div className="flex items-center gap-3 min-w-0">
+
                       <span
                         className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center ${
-                          isSelected ? "bg-black/10" : "bg-[#20232A]"
+                          isSelected
+                            ? "bg-black/10"
+                            : "bg-[#20232A]"
                         }`}
                       >
                         <RiUserFill className="text-xl" />
                       </span>
 
                       <div className="flex flex-col min-w-0">
+
                         <span className="font-semibold truncate">
                           {user?.username}
                         </span>
 
                         <small
                           className={`truncate ${
-                            isSelected ? "text-black/60" : "text-gray-500"
+                            isSelected
+                              ? "text-black/60"
+                              : "text-gray-500"
                           }`}
                         >
                           {user?.email}
                         </small>
+
                       </div>
+
                     </div>
 
-                    {/* STATUS / CHECK */}
+                    {/* STATUS */}
 
                     {isAlreadyCollaborator ? (
                       <span
                         className={`text-xs whitespace-nowrap ${
-                          isMarkedForRemove ? "text-red-400" : "text-gray-400"
+                          isMarkedForRemove
+                            ? "text-red-400"
+                            : "text-gray-400"
                         }`}
                       >
-                        {isMarkedForRemove ? "Will be removed" : "Added"}
+                        {isMarkedForRemove
+                          ? "Will be removed"
+                          : "Added"}
                       </span>
                     ) : (
                       isSelected && (
@@ -428,16 +728,20 @@ const DetailProject = () => {
                         </span>
                       )
                     )}
+
                   </div>
                 );
               })}
+
             </div>
 
             {/* MODAL FOOTER */}
 
             <footer className="border-t border-[#292C34] p-3 sm:p-4 flex items-center justify-between gap-3 shrink-0">
+
               <span className="text-xs sm:text-sm text-gray-500">
                 {selectedUsers.length} to add
+
                 {removeUserIds.length > 0 &&
                   `, ${removeUserIds.length} to remove`}
               </span>
@@ -447,12 +751,18 @@ const DetailProject = () => {
                 disabled={!hasChanges || isSaving}
                 className="bg-[#F7FF72] text-black font-semibold text-sm sm:text-base px-4 sm:px-5 py-2 sm:py-2.5 rounded-full disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 hover:opacity-90 transition whitespace-nowrap"
               >
-                {isSaving ? "Saving..." : "Save Changes"}
+                {isSaving
+                  ? "Saving..."
+                  : "Save Changes"}
               </button>
+
             </footer>
+
           </div>
+
         </div>
       )}
+
     </>
   );
 };
