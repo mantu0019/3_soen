@@ -11,11 +11,11 @@ import jwt from "jsonwebtoken";
 import { parse } from "cookie-es";
 import mongoose from "mongoose";
 import projectModel from "./src/models/project.model.js";
-
+ 
 dns.setServers(["1.1.1.1", "8.8.8.8"]);
 
 connectToDb();
-
+ 
 const port = envConfig.PORT || 5000;
 
 const httpServer = createServer(app);
@@ -26,6 +26,7 @@ const io = new Server(httpServer, {
     credentials: true,
   },
 });
+
 
 // socket authenticate
 io.use(async (socket, next) => {

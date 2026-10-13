@@ -5,6 +5,7 @@ import authRouter from "./routes/auth.routes.js";
 import cors from "cors";
 import projectRouter from "./routes/project.routes.js";
 import errorMiddleware from "./middleware/error.middleware.js";
+import aiRouter from "./routes/ai.routes.js";
 const app = express();
 app.use(express.json());
 
@@ -20,6 +21,7 @@ app.use(morgan("dev"));
 
 app.use("/api/auth", authRouter);
 app.use("/api/project", projectRouter);
+app.use("/ai/api",aiRouter)
 
 app.use(errorMiddleware);
 

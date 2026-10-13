@@ -12,6 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@google/genai": "^2.28.0",
     "bcrypt": "^6.0.0",
     "cookie-es": "^3.1.1",
     "cookie-parser": "^1.4.7",
