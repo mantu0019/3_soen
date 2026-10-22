@@ -24,6 +24,13 @@ if (!process.env.REDIS_PORT) {
 if (!process.env.GOOGLE_API_KEY) {
   throw new Error("GOOGLE_API_KEY is missing in .env");
 }
+if (!process.env.GEMINI_MODEL) {
+  throw new Error("GEMINI_MODEL is missing in .env");
+}
+
+if (!process.env.GEMINI_FALLBACK_MODEL) {
+  throw new Error("GEMINI_FALLBACK_MODEL is missing in .env");
+}
 
 const envConfig = {
   PORT: process.env.PORT,
@@ -33,6 +40,8 @@ const envConfig = {
   REDIS_PASSWORD: process.env.REDIS_PASSWORD,
   REDIS_PORT: process.env.REDIS_PORT,
   GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+  GEMINI_MODEL:process.env.GEMINI_MODEL,
+  GEMINI_FALLBACK_MODEL:process.env.GEMINI_FALLBACK_MODEL
 };
 
 export default envConfig;

@@ -11,6 +11,7 @@ import jwt from "jsonwebtoken";
 import { parse } from "cookie-es";
 import mongoose from "mongoose";
 import projectModel from "./src/models/project.model.js";
+import { generateResult } from "./src/services/ai.service.js";
  
 dns.setServers(["1.1.1.1", "8.8.8.8"]);
 
@@ -78,8 +79,29 @@ io.on("connection", (socket) => {
   socket.roomId = socket.project._id.toString();
 
   socket.join(socket.roomId);
-  socket.on("project-message", (data) => {
-    
+  socket.on("project-message",async (data) => {
+ 
+   let  message = data.message;
+  const   aiPresentInMessage = message.includes('@ai');
+  
+    if(aiPresentInMessage){
+       
+       const prompt = message.replace('@ai','');
+       const result = await generateResult(prompt);
+       io.to(socket.roomId).emit('project-message',{
+        message:result,
+        sender:{
+          _id:"ai",
+          email:"AI"
+        }
+       })
+
+    }
+
+
+
+
+
     socket.broadcast.to(socket.roomId).emit("project-message", data);
   });
   socket.on("message", (data) => {
