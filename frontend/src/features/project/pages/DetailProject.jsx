@@ -1,6 +1,7 @@
+ 
 import { useParams } from "react-router";
 import { api } from "../../../app/api";
- import {
+import {
   RiAddLargeFill,
   RiCloseLargeLine,
   RiGroupFill,
@@ -17,11 +18,80 @@ import { useAuth } from "../../auth/hooks/useAuth";
 import { useProject } from "../hook/useProject";
 
 import { initializeSocket, sendMessage } from "../../../config/socket";
-import AiLoading from "../../../components/AiLoading";
 import { getWebContainer } from "../../../config/webContainer";
 
 const getId = (user) => {
   return typeof user === "string" ? user : (user?._id ?? user?.id);
+};
+
+// ================= FILE TREE HELPERS =================
+
+// Supports: "x": "code" | { contents } | { file: { contents } }
+const getFileContents = (file) => {
+  if (typeof file === "string") return file;
+
+  const contents = file?.contents ?? file?.file?.contents ?? "";
+
+  return typeof contents === "string"
+    ? contents
+    : JSON.stringify(contents, null, 2);
+};
+
+// Converts any nested tree into a flat { "path/file.js": { contents } } map
+const flattenFileTree = (tree, prefix = "") => {
+  const result = {};
+
+  if (!tree || typeof tree !== "object") return result;
+
+  Object.entries(tree).forEach(([name, node]) => {
+    const path = prefix ? `${prefix}/${name}` : name;
+
+    if (typeof node === "string") {
+      result[path] = { contents: node };
+      return;
+    }
+
+    if (!node || typeof node !== "object") return;
+
+    if (node.file || "contents" in node) {
+      result[path] = { contents: getFileContents(node) };
+    } else if (node.directory) {
+      Object.assign(result, flattenFileTree(node.directory, path));
+    } else {
+      Object.assign(result, flattenFileTree(node, path));
+    }
+  });
+
+  return result;
+};
+
+// Socket message can be an object OR a JSON string (maybe with ``` fences)
+const parseSocketMessage = (raw) => {
+  if (raw && typeof raw === "object") return raw;
+
+  if (typeof raw !== "string") return null;
+
+  const cleaned = raw
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "")
+    .trim();
+
+  if (!cleaned.startsWith("{")) return null;
+
+  try {
+    const parsed = JSON.parse(cleaned);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+// { mainItem: "npm", commands: ["install"] } -> "npm install"
+const formatCommand = (cmd) => {
+  if (!cmd || typeof cmd !== "object" || !cmd.mainItem) return null;
+
+  return `${cmd.mainItem} ${(cmd.commands || []).join(" ")}`.trim();
 };
 
 const DetailProject = () => {
@@ -34,37 +104,28 @@ const DetailProject = () => {
   // ================= STATES =================
 
   const [isSlidePanel, setIsSlidePanel] = useState(false);
-
   const [isCollaboratorModal, setIsCollaboratorModal] = useState(false);
-
   const [users, setUsers] = useState([]);
-
   const [collaborators, setCollaborators] = useState([]);
-
   const [selectedUsers, setSelectedUsers] = useState([]);
-
   const [removeUserIds, setRemoveUserIds] = useState([]);
-
   const [isSaving, setIsSaving] = useState(false);
-
   const [message, setMessage] = useState("");
-
   const [messages, setMessages] = useState([]);
-
   const [currentUserId, setCurrentUserId] = useState(null);
-
   const [isSending, setIsSending] = useState(false);
+
   const [fileTree, setFileTree] = useState({});
-
-  const [currentFile, setCurrentFile] = useState("app.js");
+  const [currentFile, setCurrentFile] = useState(null);
   const [openFile, setOpenFile] = useState([]);
-  const [webContainer, setWebContainer] = useState(null)
-
-
+  const [webContainer, setWebContainer] = useState(null);
+  const [commands, setCommands] = useState({ build: null, start: null });
 
   const msgRef = useRef(null);
-
   const currentUserIdRef = useRef(null);
+  const webContainerStartedRef = useRef(false);
+
+  // ================= CURRENT USER =================
 
   useEffect(() => {
     let isMounted = true;
@@ -109,6 +170,23 @@ const DetailProject = () => {
     getData();
   }, [allUserData]);
 
+  // ================= WEB CONTAINER (boot only once) =================
+
+  useEffect(() => {
+    if (webContainerStartedRef.current) return;
+
+    webContainerStartedRef.current = true;
+
+    getWebContainer()
+      .then((container) => {
+        setWebContainer(container);
+        console.log("container started", container);
+      })
+      .catch((error) => {
+        console.error("WebContainer failed:", error);
+      });
+  }, []);
+
   // ================= APPEND MESSAGE =================
 
   const appendIncomingMessage = (msgObj) => {
@@ -126,67 +204,87 @@ const DetailProject = () => {
     if (!projectId) return;
 
     const socket = initializeSocket(projectId);
-         if(!webContainer){
-         getWebContainer().then(container=>{
-          setWebContainer(container)
-          console.log("container started",container)
-         })  
-   
 
-         }
- 
     if (!socket) {
       console.error("Socket initialization failed");
       return;
     }
- 
- 
 
+    const handleMessage = (data) => {
+      console.log("socket data:", data);
 
- const handleMessage = (data) => {
-  if (!data?.message) {
-    console.log("Invalid socket payload:", data);
-    return;
-  }
+      if (!data?.message) {
+        console.log("Invalid socket payload:", data);
+        return;
+      }
 
-  let response;
+      const parsed = parseSocketMessage(data.message);
 
-  try {
-    response =
-      typeof data.message === "string"
-        ? JSON.parse(data.message)
-        : data.message;
-  } catch {
-    // Normal text message, such as "hello"
-    appendIncomingMessage(data);
-    return;
-  }
+      // 1) Normal text message (like "hello")
+      if (!parsed) {
+        appendIncomingMessage({
+          ...data,
+          message:
+            typeof data.message === "string"
+              ? data.message
+              : String(data.message),
+        });
+        return;
+      }
 
-  // AI-generated files
-  if (response?.files && typeof response.files === "object") {
-    setFileTree((prev) => ({
-      ...prev,
-      ...response.files,
-    }));
-  }
+      const isAIResponse = "text" in parsed || "files" in parsed;
 
-  // Normal message or explanation
-  else {
-    appendIncomingMessage({
-      ...data,
-      message:
-        typeof response === "string"
-          ? response
-          : data.message,
-    });
-  }
-};
+      // 2) JSON, but not AI format -> show as code block
+      if (!isAIResponse) {
+        appendIncomingMessage({
+          ...data,
+          message: "```json\n" + JSON.stringify(parsed, null, 2) + "\n```",
+        });
+        return;
+      }
 
+      // 3) AI response -> update file tree
+      const flatFiles = flattenFileTree(parsed.files);
+      const fileNames = Object.keys(flatFiles);
 
+      if (fileNames.length > 0) {
+        setFileTree((prev) => ({ ...prev, ...flatFiles }));
 
+        // Open ALL generated files as tabs, show the first one
+        setCurrentFile(fileNames[0]);
+        setOpenFile((prev) => [
+          ...prev,
+          ...fileNames.filter((name) => !prev.includes(name)),
+        ]);
+      }
 
- 
+      const buildCmd = formatCommand(parsed.buildCommand);
+      const startCmd = formatCommand(parsed.startCommand);
 
+      if (buildCmd || startCmd) {
+        setCommands({ build: buildCmd, start: startCmd });
+      }
+
+      // Full chat message: text + files + commands
+      const parts = [];
+
+      if (typeof parsed.text === "string" && parsed.text.trim()) {
+        parts.push(parsed.text);
+      }
+
+      if (fileNames.length > 0) {
+        parts.push(
+          "**Files:**\n" + fileNames.map((name) => `- \`${name}\``).join("\n"),
+        );
+      }
+
+      if (buildCmd) parts.push(`**Build:** \`${buildCmd}\``);
+      if (startCmd) parts.push(`**Start:** \`${startCmd}\``);
+
+      if (parts.length > 0) {
+        appendIncomingMessage({ ...data, message: parts.join("\n\n") });
+      }
+    };
 
     socket.on("project-message", handleMessage);
 
@@ -373,11 +471,11 @@ const DetailProject = () => {
         sender: String(userId),
       };
 
-       appendIncomingMessage(newMessage);
+      appendIncomingMessage(newMessage);
 
-       sendMessage("project-message", newMessage);
+      sendMessage("project-message", newMessage);
 
-       setMessage("");
+      setMessage("");
     } catch (error) {
       console.error("Message send failed:", error);
     } finally {
@@ -389,9 +487,7 @@ const DetailProject = () => {
 
   const openCollaboratorModal = () => {
     setSelectedUsers([]);
-
     setRemoveUserIds([]);
-
     setIsCollaboratorModal(true);
   };
 
@@ -399,9 +495,7 @@ const DetailProject = () => {
 
   const closeCollaboratorModal = () => {
     setSelectedUsers([]);
-
     setRemoveUserIds([]);
-
     setIsCollaboratorModal(false);
   };
 
@@ -468,7 +562,9 @@ const DetailProject = () => {
                     >
                       {users.find(
                         (user) => String(getId(user)) === String(senderId),
-                      )?.email || "You"}
+                      )?.email ||
+                        (typeof msg.sender === "object" && msg.sender?.email) ||
+                        "You"}
                     </small>
 
                     <div className="mt-1 text-sm sm:text-base break-words">
@@ -518,7 +614,7 @@ const DetailProject = () => {
                           },
                         }}
                       >
-                        {msg.message}
+                        {String(msg.message)}
                       </Markdown>
                     </div>
                   </div>
@@ -604,207 +700,207 @@ const DetailProject = () => {
         {/* ================= RIGHT PANEL ================= */}
 
         <div className="hidden md:flex flex-1 h-screen bg-[#131418] items-center justify-center">
-  <div className="text-gray-300 text-sm select-none flex w-full h-screen overflow-hidden">
+          <div className="text-gray-300 text-sm flex w-full h-screen overflow-hidden">
+            {/* FILE EXPLORER */}
+            <div className="explorer w-[30%] min-w-[200px] max-w-[300px] bg-[#131418] border-r border-[#2a2b30] flex flex-col">
+              {/* Explorer Header */}
+              <div className="flex items-center justify-between px-4 py-4 border-b border-[#2a2b30]">
+                <h2 className="text-xs font-bold tracking-[2px] uppercase text-[#F7FF72]">
+                  Explorer
+                </h2>
 
-    {/* FILE EXPLORER */}
-    <div className="explorer w-[30%] min-w-[200px] max-w-[300px] bg-[#131418] border-r border-[#2a2b30] flex flex-col">
+                <span className="text-xs text-gray-500">
+                  {Object.keys(fileTree).length} Files
+                </span>
+              </div>
 
-      {/* Explorer Header */}
-      <div className="flex items-center justify-between px-4 py-4 border-b border-[#2a2b30]">
-        <h2 className="text-xs font-bold tracking-[2px] uppercase text-[#F7FF72]">
-          Explorer
-        </h2>
+              {/* Files Heading */}
+              <div className="px-4 py-3">
+                <p className="text-[11px] font-semibold tracking-widest text-gray-500 uppercase">
+                  Project Files
+                </p>
+              </div>
 
-        <span className="text-xs text-gray-500">
-          {Object.keys(fileTree).length} Files
-        </span>
-      </div>
+              {/* File List */}
+              <div className="file-tree flex-1 overflow-y-auto px-2 pb-3">
+                {Object.keys(fileTree).length === 0 && (
+                  <p className="px-3 py-2 text-xs text-gray-600">
+                    No files yet. Ask @ai to create a project.
+                  </p>
+                )}
 
-      {/* Files Heading */}
-      <div className="px-4 py-3">
-        <p className="text-[11px] font-semibold tracking-widest text-gray-500 uppercase">
-          Project Files
-        </p>
-      </div>
+                {Object.keys(fileTree).map((file) => (
+                  <button
+                    key={file}
+                    onClick={() => {
+                      setCurrentFile(file);
 
-      {/* File List */}
-      <div className="file-tree flex-1 overflow-y-auto px-2 pb-3">
+                      setOpenFile((prev) =>
+                        prev.includes(file) ? prev : [...prev, file],
+                      );
+                    }}
+                    className={`group flex items-center gap-3 w-full text-left px-3 py-2.5 mb-1 rounded-lg border transition-all duration-200 ${
+                      currentFile === file
+                        ? "bg-[#F7FF72]/10 text-[#F7FF72] border-[#F7FF72]/20 shadow-[inset_3px_0_0_#F7FF72]"
+                        : "text-gray-400 border-transparent hover:bg-[#1c1d22] hover:text-gray-200"
+                    }`}
+                  >
+                    {/* File Icon */}
+                    <span
+                      className={`text-sm transition-colors ${
+                        currentFile === file
+                          ? "text-[#F7FF72]"
+                          : "text-gray-500 group-hover:text-gray-300"
+                      }`}
+                    >
+                      ◈
+                    </span>
 
-        {Object.keys(fileTree).map((file) => (
-          <button
-            key={file}
-            onClick={() => {
-              setCurrentFile(file);
+                    <span className="truncate text-[13px] font-medium">
+                      {file}
+                    </span>
 
-              setOpenFile((prev) =>
-                prev.includes(file) ? prev : [...prev, file]
-              );
-            }}
-            className={`group flex items-center gap-3 w-full text-left px-3 py-2.5 mb-1 rounded-lg border transition-all duration-200 ${
-              currentFile === file
-                ? "bg-[#F7FF72]/10 text-[#F7FF72] border-[#F7FF72]/20 shadow-[inset_3px_0_0_#F7FF72]"
-                : "text-gray-400 border-transparent hover:bg-[#1c1d22] hover:text-gray-200"
-            }`}
-          >
-            {/* File Icon */}
-            <span
-              className={`text-sm transition-colors ${
-                currentFile === file
-                  ? "text-[#F7FF72]"
-                  : "text-gray-500 group-hover:text-gray-300"
-              }`}
-            >
-              ◈
-            </span>
+                    {currentFile === file && (
+                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#F7FF72] shrink-0" />
+                    )}
+                  </button>
+                ))}
+              </div>
 
-            <span className="truncate text-[13px] font-medium">
-              {file}
-            </span>
+              {/* Explorer Footer */}
+              <div className="px-4 py-3 border-t border-[#2a2b30] flex flex-col gap-1.5">
+                {commands.build && (
+                  <p className="text-[11px] text-gray-500 truncate">
+                    Build:{" "}
+                    <code className="text-[#F7FF72]">{commands.build}</code>
+                  </p>
+                )}
 
-            {currentFile === file && (
-              <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#F7FF72] shrink-0" />
-            )}
-          </button>
-        ))}
+                {commands.start && (
+                  <p className="text-[11px] text-gray-500 truncate">
+                    Start:{" "}
+                    <code className="text-[#F7FF72]">{commands.start}</code>
+                  </p>
+                )}
 
-      </div>
-
-      {/* Explorer Footer */}
-      <div className="px-4 py-3 border-t border-[#2a2b30]">
-        <p className="text-[11px] text-gray-600">
-          <span className="text-[#F7FF72]">●</span> Workspace Ready
-        </p>
-      </div>
-
-    </div>
-
-    {/* FILE EDITOR */}
-    <div className="file-editor bg-[#131418] flex-1 min-w-0 h-full flex flex-col overflow-hidden">
-
-      {/* TOP TABS */}
-      <div className="top flex items-center bg-[#17181d] border-b border-[#2a2b30] shrink-0 overflow-x-auto">
-
-        {openFile.map((file) => (
-          <div
-            key={file}
-            onClick={() => setCurrentFile(file)}
-            className={`group flex items-center gap-3 px-4 py-3 cursor-pointer border-r border-[#2a2b30] border-t-2 transition-all duration-200 ${
-              currentFile === file
-                ? "bg-[#131418] text-[#F7FF72] border-t-[#F7FF72]"
-                : "bg-[#17181d] text-gray-500 border-t-transparent hover:bg-[#1c1d22] hover:text-gray-300"
-            }`}
-          >
-            <span className="text-xs text-[#F7FF72]">◈</span>
-
-            <span className="text-[13px] whitespace-nowrap">
-              {file}
-            </span>
-
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-
-                const updatedFiles = openFile.filter(
-                  (item) => item !== file
-                );
-
-                setOpenFile(updatedFiles);
-
-                if (currentFile === file) {
-                  setCurrentFile(
-                    updatedFiles.length > 0
-                      ? updatedFiles[updatedFiles.length - 1]
-                      : null
-                  );
-                }
-              }}
-              className="w-5 h-5 flex items-center justify-center rounded-md text-gray-600 hover:bg-[#2a2b30] hover:text-[#F7FF72] transition-colors"
-              title="Close file"
-            >
-              ×
-            </button>
-          </div>
-        ))}
-
-        {/* Empty Tabs Message */}
-        {openFile.length === 0 && (
-          <div className="px-5 py-3 text-xs text-gray-600">
-            No files open
-          </div>
-        )}
-
-      </div>
-
-      {/* EDITOR INFO BAR */}
-      <div className="flex items-center justify-between px-5 py-2 bg-[#131418] border-b border-[#222329] shrink-0">
-
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[#F7FF72] text-xs">◈</span>
-
-          <span className="text-xs text-gray-400 truncate">
-            {currentFile || "No file selected"}
-          </span>
-        </div>
-
-        <span className="text-[10px] uppercase tracking-widest text-gray-600">
-          Editor
-        </span>
-
-      </div>
-
-      {/* CODE EDITOR */}
-      <div className="flex-1 min-h-0 overflow-auto p-5 bg-[#131418]">
-
-        {currentFile && fileTree[currentFile] ? (
-          <pre className="text-[#d4d4d4] text-[13px] leading-7 font-mono whitespace-pre-wrap break-words">
-            <code>{fileTree[currentFile]?.contents}</code>
-          </pre>
-        ) : (
-          <div className="h-full flex flex-col items-center justify-center text-center">
-
-            <div className="w-16 h-16 flex items-center justify-center rounded-2xl bg-[#F7FF72]/10 border border-[#F7FF72]/20 mb-5">
-              <span className="text-3xl text-[#F7FF72]">
-                &lt;/&gt;
-              </span>
+                <p className="text-[11px] text-gray-600">
+                  <span className="text-[#F7FF72]">●</span>{" "}
+                  {webContainer ? "Workspace Ready" : "Starting workspace..."}
+                </p>
+              </div>
             </div>
 
-            <h3 className="text-base font-semibold text-gray-300 mb-2">
-              Welcome to Code Editor
-            </h3>
+            {/* FILE EDITOR */}
+            <div className="file-editor bg-[#131418] flex-1 min-w-0 h-full flex flex-col overflow-hidden">
+              {/* TOP TABS */}
+              <div className="top flex items-center bg-[#17181d] border-b border-[#2a2b30] shrink-0 overflow-x-auto">
+                {openFile.map((file) => (
+                  <div
+                    key={file}
+                    onClick={() => setCurrentFile(file)}
+                    className={`group flex items-center gap-3 px-4 py-3 cursor-pointer border-r border-[#2a2b30] border-t-2 transition-all duration-200 ${
+                      currentFile === file
+                        ? "bg-[#131418] text-[#F7FF72] border-t-[#F7FF72]"
+                        : "bg-[#17181d] text-gray-500 border-t-transparent hover:bg-[#1c1d22] hover:text-gray-300"
+                    }`}
+                  >
+                    <span className="text-xs text-[#F7FF72]">◈</span>
 
-            <p className="text-xs text-gray-600 max-w-[250px] leading-6">
-              Select a file from the explorer to view its contents.
-            </p>
+                    <span className="text-[13px] whitespace-nowrap">
+                      {file}
+                    </span>
 
-            <div className="mt-5 px-4 py-2 rounded-lg bg-[#1b1c21] border border-[#2a2b30]">
-              <span className="text-xs capitalize text-[#F7FF72]">
-                create your project
-              </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+
+                        const updatedFiles = openFile.filter(
+                          (item) => item !== file,
+                        );
+
+                        setOpenFile(updatedFiles);
+
+                        if (currentFile === file) {
+                          setCurrentFile(
+                            updatedFiles.length > 0
+                              ? updatedFiles[updatedFiles.length - 1]
+                              : null,
+                          );
+                        }
+                      }}
+                      className="w-5 h-5 flex items-center justify-center rounded-md text-gray-600 hover:bg-[#2a2b30] hover:text-[#F7FF72] transition-colors"
+                      title="Close file"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+
+                {/* Empty Tabs Message */}
+                {openFile.length === 0 && (
+                  <div className="px-5 py-3 text-xs text-gray-600">
+                    No files open
+                  </div>
+                )}
+              </div>
+
+              {/* EDITOR INFO BAR */}
+              <div className="flex items-center justify-between px-5 py-2 bg-[#131418] border-b border-[#222329] shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[#F7FF72] text-xs">◈</span>
+
+                  <span className="text-xs text-gray-400 truncate">
+                    {currentFile || "No file selected"}
+                  </span>
+                </div>
+
+                <span className="text-[10px] uppercase tracking-widest text-gray-600">
+                  Editor
+                </span>
+              </div>
+
+              {/* CODE EDITOR */}
+              <div className="flex-1 min-h-0 overflow-auto p-5 bg-[#131418]">
+                {currentFile && fileTree[currentFile] ? (
+                  <pre className="text-[#d4d4d4] text-[13px] leading-7 font-mono whitespace-pre-wrap break-words">
+                    <code>{getFileContents(fileTree[currentFile])}</code>
+                  </pre>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-center">
+                    <div className="w-16 h-16 flex items-center justify-center rounded-2xl bg-[#F7FF72]/10 border border-[#F7FF72]/20 mb-5">
+                      <span className="text-3xl text-[#F7FF72]">&lt;/&gt;</span>
+                    </div>
+
+                    <h3 className="text-base font-semibold text-gray-300 mb-2">
+                      Welcome to Code Editor
+                    </h3>
+
+                    <p className="text-xs text-gray-600 max-w-[250px] leading-6">
+                      Select a file from the explorer to view its contents.
+                    </p>
+
+                    <div className="mt-5 px-4 py-2 rounded-lg bg-[#1b1c21] border border-[#2a2b30]">
+                      <span className="text-xs capitalize text-[#F7FF72]">
+                        create your project
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* STATUS BAR */}
+              <div className="flex items-center justify-between px-4 py-2 bg-[#17181d] border-t border-[#2a2b30] shrink-0">
+                <div className="flex items-center gap-3 text-[10px] text-gray-500">
+                  <span className="text-[#F7FF72]">● You Can Do It Man</span>
+                </div>
+
+                <span className="text-[10px] tracking-wider text-gray-600">
+                  Create Your Project
+                </span>
+              </div>
             </div>
-
           </div>
-        )}
-
-      </div>
-
-      {/* STATUS BAR */}
-      <div className="flex items-center justify-between px-4 py-2 bg-[#17181d] border-t border-[#2a2b30] shrink-0">
-
-        <div className="flex items-center gap-3 text-[10px] text-gray-500">
-          <span className="text-[#F7FF72]">● You Can Do It Man</span>
-          
         </div>
-
-        <span className="text-[10px] tracking-wider text-gray-600">
-          Create Your Project
-        </span>
-
-      </div>
-
-    </div>
-
-  </div>
-</div>
       </main>
 
       {isCollaboratorModal && (
