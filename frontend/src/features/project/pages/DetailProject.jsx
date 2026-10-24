@@ -1,4 +1,3 @@
- 
 import { useParams } from "react-router";
 import { api } from "../../../app/api";
 import {
@@ -708,7 +707,36 @@ const DetailProject = () => {
                 <h2 className="text-xs font-bold tracking-[2px] uppercase text-[#F7FF72]">
                   Explorer
                 </h2>
+                <button
+                  className=" text-xl text-white rounded active:scale-95 px-3.5 py-0.5 bg-red-400"
+                  onClick={async () => {
+                    console.log("Clicked....");
+                      await webContainer.mount(fileTree)
 
+                    const installProcess = await webContainer.spawn("npm", [
+                      "install",
+                    ]);
+                    installProcess.output.pipeTo(
+                      new WritableStream({
+                        write(chunk) {
+                          console.log("chunk hai ", chunk);
+                        },
+                      }),
+                    );
+                   const runProcess = await webContainer.spawn("npm",["start"]);
+                   runProcess.output.pipeTo(new WritableStream({
+                    write(chunk){
+                      console.log("chunk hai2",chunk)
+                    }
+                   }))
+
+
+
+
+                  }}
+                >
+                  Run
+                </button>
                 <span className="text-xs text-gray-500">
                   {Object.keys(fileTree).length} Files
                 </span>
