@@ -1,5 +1,7 @@
 import { Router } from "express";
+
 import authMiddleware from "../middleware/auth.middleware.js";
+
 import {
   addUserValidator,
   createProjectServices,
@@ -13,38 +15,56 @@ import {
   getProjectController,
   removeUserFromProject,
 } from "../controller/project.controller.js";
+import { authApiLimiter } from "../middleware/rate.limiter.js";
 
+// Rate limiter import
+ 
 const projectRouter = Router();
 
+// Create Project
 projectRouter.post(
   "/create",
+  authApiLimiter,
   createProjectServices,
   validate,
   authMiddleware,
-  createProject,
-); // done
-
-projectRouter.get("/get", authMiddleware, getAllProject); // done
-projectRouter.put(
-  "/add-user",
-  addUserValidator,
-  validate,
-  authMiddleware,
-  addUserToProject,
+  createProject
 );
 
+// Get All Projects
 projectRouter.get(
-  "/get-project/:projectId",
+  "/get",
+  authApiLimiter,
   authMiddleware,
-  getProjectController,
-); // done
+  getAllProject
+);
 
+// Add User to Project
 projectRouter.put(
-  "/remove-user",
+  "/add-user",
+  authApiLimiter,
   addUserValidator,
   validate,
   authMiddleware,
-  removeUserFromProject,
+  addUserToProject
+);
+
+// Get Specific Project
+projectRouter.get(
+  "/get-project/:projectId",
+  authApiLimiter,
+  authMiddleware,
+  getProjectController
+);
+
+// Remove User from Project
+projectRouter.put(
+  "/remove-user",
+  authApiLimiter,
+  addUserValidator,
+  validate,
+  authMiddleware,
+  removeUserFromProject
 );
 
 export default projectRouter;

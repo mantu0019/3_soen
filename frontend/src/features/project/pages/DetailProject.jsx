@@ -1,3 +1,4 @@
+  
 import { useParams } from "react-router";
 import { api } from "../../../app/api";
 import {
@@ -8,7 +9,6 @@ import {
   RiUserFill,
   RiCheckLine,
 } from "react-icons/ri";
-
 import Markdown from "markdown-to-jsx";
 
 import { useEffect, useRef, useState } from "react";
@@ -18,15 +18,14 @@ import { useProject } from "../hook/useProject";
 
 import { initializeSocket, sendMessage } from "../../../config/socket";
 import { getWebContainer } from "../../../config/webContainer";
+import AiLoading from "../../../components/AiLoading";
 
 const getId = (user) => {
   return typeof user === "string" ? user : (user?._id ?? user?.id);
 };
 
-// ================= FILE TREE HELPERS =================
-
-// Supports: "x": "code" | { contents } | { file: { contents } }
-const getFileContents = (file) => {
+ 
+ const getFileContents = (file) => {
   if (typeof file === "string") return file;
 
   const contents = file?.contents ?? file?.file?.contents ?? "";
@@ -36,8 +35,7 @@ const getFileContents = (file) => {
     : JSON.stringify(contents, null, 2);
 };
 
-// Converts any nested tree into a flat { "path/file.js": { contents } } map
-const flattenFileTree = (tree, prefix = "") => {
+ const flattenFileTree = (tree, prefix = "") => {
   const result = {};
 
   if (!tree || typeof tree !== "object") return result;
@@ -64,7 +62,6 @@ const flattenFileTree = (tree, prefix = "") => {
   return result;
 };
 
-// Socket message can be an object OR a JSON string (maybe with ``` fences)
 const parseSocketMessage = (raw) => {
   if (raw && typeof raw === "object") return raw;
 
@@ -86,7 +83,6 @@ const parseSocketMessage = (raw) => {
   }
 };
 
-// { mainItem: "npm", commands: ["install"] } -> "npm install"
 const formatCommand = (cmd) => {
   if (!cmd || typeof cmd !== "object" || !cmd.mainItem) return null;
 
@@ -100,8 +96,7 @@ const DetailProject = () => {
 
   const { addUserInCollaborator, removeProjectByUser } = useProject();
 
-  // ================= STATES =================
-
+ //states
   const [isSlidePanel, setIsSlidePanel] = useState(false);
   const [isCollaboratorModal, setIsCollaboratorModal] = useState(false);
   const [users, setUsers] = useState([]);
@@ -113,19 +108,20 @@ const DetailProject = () => {
   const [messages, setMessages] = useState([]);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [isSending, setIsSending] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const [fileTree, setFileTree] = useState({});
   const [currentFile, setCurrentFile] = useState(null);
   const [openFile, setOpenFile] = useState([]);
   const [webContainer, setWebContainer] = useState(null);
   const [commands, setCommands] = useState({ build: null, start: null });
-
+  const [isRunning, setIsRunning] = useState(false);
   const msgRef = useRef(null);
   const currentUserIdRef = useRef(null);
   const webContainerStartedRef = useRef(false);
+ const [iFrameUrl, setIFrameUrl] = useState(null)
 
-  // ================= CURRENT USER =================
-
+ // current user
   useEffect(() => {
     let isMounted = true;
 
@@ -153,8 +149,7 @@ const DetailProject = () => {
     };
   }, [getMeByUser]);
 
-  // ================= GET ALL USERS =================
-
+// get all user
   useEffect(() => {
     const getData = async () => {
       try {
@@ -169,8 +164,7 @@ const DetailProject = () => {
     getData();
   }, [allUserData]);
 
-  // ================= WEB CONTAINER (boot only once) =================
-
+ // web container
   useEffect(() => {
     if (webContainerStartedRef.current) return;
 
@@ -186,8 +180,25 @@ const DetailProject = () => {
       });
   }, []);
 
-  // ================= APPEND MESSAGE =================
+   useEffect(() => {
+    if (!webContainer) return;
 
+    const handleServerReady = (port, url) => {
+      console.log(`WebContainer server ready on port ${port}:`, url);
+      setIFrameUrl(url);
+      setIsRunning(false);
+    };
+
+    webContainer.on("server-ready", handleServerReady);
+
+    return () => {
+      if (typeof webContainer.off === "function") {
+        webContainer.off("server-ready", handleServerReady);
+      }
+    };
+  }, [webContainer]);
+
+ // append msg
   const appendIncomingMessage = (msgObj) => {
     if (!msgObj?.message) {
       console.log("Invalid message:", msgObj);
@@ -197,8 +208,7 @@ const DetailProject = () => {
     setMessages((prevMessages) => [...prevMessages, msgObj]);
   };
 
-  // ================= SOCKET CONNECTION =================
-
+// socket connection
   useEffect(() => {
     if (!projectId) return;
 
@@ -219,8 +229,7 @@ const DetailProject = () => {
 
       const parsed = parseSocketMessage(data.message);
 
-      // 1) Normal text message (like "hello")
-      if (!parsed) {
+       if (!parsed) {
         appendIncomingMessage({
           ...data,
           message:
@@ -233,8 +242,9 @@ const DetailProject = () => {
 
       const isAIResponse = "text" in parsed || "files" in parsed;
 
-      // 2) JSON, but not AI format -> show as code block
-      if (!isAIResponse) {
+       if (isAIResponse) setAiLoading(false);
+
+       if (!isAIResponse) {
         appendIncomingMessage({
           ...data,
           message: "```json\n" + JSON.stringify(parsed, null, 2) + "\n```",
@@ -242,15 +252,13 @@ const DetailProject = () => {
         return;
       }
 
-      // 3) AI response -> update file tree
-      const flatFiles = flattenFileTree(parsed.files);
+       const flatFiles = flattenFileTree(parsed.files);
       const fileNames = Object.keys(flatFiles);
 
       if (fileNames.length > 0) {
         setFileTree((prev) => ({ ...prev, ...flatFiles }));
 
-        // Open ALL generated files as tabs, show the first one
-        setCurrentFile(fileNames[0]);
+         setCurrentFile(fileNames[0]);
         setOpenFile((prev) => [
           ...prev,
           ...fileNames.filter((name) => !prev.includes(name)),
@@ -264,8 +272,7 @@ const DetailProject = () => {
         setCommands({ build: buildCmd, start: startCmd });
       }
 
-      // Full chat message: text + files + commands
-      const parts = [];
+       const parts = [];
 
       if (typeof parsed.text === "string" && parsed.text.trim()) {
         parts.push(parsed.text);
@@ -294,8 +301,7 @@ const DetailProject = () => {
     };
   }, [projectId]);
 
-  // ================= AUTO SCROLL =================
-
+   
   useEffect(() => {
     const msgBox = msgRef.current;
 
@@ -304,8 +310,7 @@ const DetailProject = () => {
     msgBox.scrollTop = msgBox.scrollHeight;
   }, [messages]);
 
-  // ================= FETCH PROJECT =================
-
+ 
   useEffect(() => {
     if (!projectId || users.length === 0) return;
 
@@ -334,8 +339,7 @@ const DetailProject = () => {
     getProjectById();
   }, [projectId, users]);
 
-  // ================= SELECT COLLABORATOR =================
-
+   
   const handleSelectUser = (user) => {
     const userId = getId(user);
 
@@ -347,8 +351,7 @@ const DetailProject = () => {
       (collaborator) => String(getId(collaborator)) === normalizedId,
     );
 
-    // Existing collaborator: mark for removal.
-    if (alreadyCollaborator) {
+     if (alreadyCollaborator) {
       setRemoveUserIds((prev) =>
         prev.includes(normalizedId)
           ? prev.filter((id) => id !== normalizedId)
@@ -358,8 +361,7 @@ const DetailProject = () => {
       return;
     }
 
-    // New collaborator: select or unselect.
-    setSelectedUsers((prev) => {
+     setSelectedUsers((prev) => {
       const alreadySelected = prev.some(
         (selectedUser) => String(getId(selectedUser)) === normalizedId,
       );
@@ -374,8 +376,7 @@ const DetailProject = () => {
     });
   };
 
-  // ================= SAVE COLLABORATORS =================
-
+ 
   const handleSaveChanges = async () => {
     if (isSaving) return;
 
@@ -388,8 +389,7 @@ const DetailProject = () => {
     try {
       setIsSaving(true);
 
-      // ---------- ADD ----------
-
+ 
       if (selectedUsers.length > 0) {
         const userIds = selectedUsers.map(getId).filter(Boolean);
 
@@ -411,8 +411,7 @@ const DetailProject = () => {
         });
       }
 
-      // ---------- REMOVE ----------
-
+ 
       if (removeUserIds.length > 0) {
         await removeProjectByUser({
           projectId,
@@ -435,8 +434,7 @@ const DetailProject = () => {
     }
   };
 
-  // ================= SEND MESSAGE =================
-
+ 
   const sendMsg = async () => {
     const text = message.trim();
 
@@ -445,8 +443,7 @@ const DetailProject = () => {
     try {
       setIsSending(true);
 
-      // Get current user ID.
-      let userId = currentUserIdRef.current;
+       let userId = currentUserIdRef.current;
 
       if (!userId) {
         const res = await getMeByUser();
@@ -464,54 +461,83 @@ const DetailProject = () => {
         setCurrentUserId(userId);
       }
 
-      // Create message payload.
-      const newMessage = {
+       const newMessage = {
         message: text,
         sender: String(userId),
       };
 
       appendIncomingMessage(newMessage);
 
-      sendMessage("project-message", newMessage);
+       
+      const isAIRequest = /(^|\s)@ai\b/i.test(text);
+      if (isAIRequest) setAiLoading(true);
 
+      sendMessage("project-message", newMessage);
       setMessage("");
     } catch (error) {
+      setAiLoading(false);
       console.error("Message send failed:", error);
     } finally {
       setIsSending(false);
     }
   };
 
-  // ================= OPEN MODAL =================
-
+ 
   const openCollaboratorModal = () => {
     setSelectedUsers([]);
     setRemoveUserIds([]);
     setIsCollaboratorModal(true);
   };
 
-  // ================= CLOSE MODAL =================
-
+ 
   const closeCollaboratorModal = () => {
     setSelectedUsers([]);
     setRemoveUserIds([]);
     setIsCollaboratorModal(false);
   };
 
-  // ================= CHANGE DETECTION =================
-
+ 
   const hasChanges = selectedUsers.length > 0 || removeUserIds.length > 0;
 
-  // ================= UI =================
+  const convertToWebContainerTree = (flatTree) => {
+    const root = {};
 
+    Object.entries(flatTree).forEach(([filePath, node]) => {
+      const parts = filePath.split("/").filter(Boolean);
+
+      let current = root;
+
+      parts.forEach((part, index) => {
+        const isFile = index === parts.length - 1;
+
+        if (isFile) {
+          current[part] = {
+            file: {
+              contents: getFileContents(node),
+            },
+          };
+        } else {
+          if (!current[part]) {
+            current[part] = {
+              directory: {},
+            };
+          }
+
+          current = current[part].directory;
+        }
+      });
+    });
+
+    return root;
+  };
+
+ 
   return (
     <>
       <main className="custom-scrollbar w-full h-screen bg-[#0B0D10] text-white flex overflow-hidden">
-        {/* ================= LEFT CHAT PANEL ================= */}
-
+ 
         <div className="w-full md:w-[480px] lg:w-[30%] shrink-0 relative bg-[#0F1115] h-screen flex flex-col border-r border-[#24262D]">
-          {/* HEADER */}
-
+ 
           <header className="bg-[#0F1115] px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between border-b border-[#24262D] shrink-0">
             <button
               className="text-sm sm:text-[15px] font-semibold flex gap-2 items-center justify-center text-white hover:text-[#F7FF72] active:scale-95 transition-all"
@@ -528,10 +554,9 @@ const DetailProject = () => {
             />
           </header>
 
-          {/* ================= CONVERSATION ================= */}
-
+ 
           <div className="conversation-area flex flex-col flex-1 min-h-0">
-            {/* MESSAGE BOX */}
+            {/* message box*/}
 
             <div
               ref={msgRef}
@@ -619,9 +644,15 @@ const DetailProject = () => {
                   </div>
                 );
               })}
+
+              {aiLoading && (
+                <div className="mr-auto max-w-[90%] rounded-2xl border border-[#24262D] bg-[#15171D] px-4 py-3">
+                  <AiLoading />
+                </div>
+              )}
             </div>
 
-            {/* ================= INPUT FIELD ================= */}
+            {/* input field  */}
 
             <div className="input-field flex items-center p-2 sm:p-3 gap-2 bg-[#0F1115] border-t border-[#24262D] shrink-0">
               <input
@@ -651,7 +682,7 @@ const DetailProject = () => {
             </div>
           </div>
 
-          {/* ================= COLLABORATOR SLIDE PANEL ================= */}
+           
 
           <div
             className={`absolute top-0 left-0 w-full h-full bg-[#0F1115] flex flex-col transform transition-transform duration-500 ease-in-out z-20 ${
@@ -696,61 +727,107 @@ const DetailProject = () => {
           </div>
         </div>
 
-        {/* ================= RIGHT PANEL ================= */}
+        {/* right panel */}
 
-        <div className="hidden md:flex flex-1 h-screen bg-[#131418] items-center justify-center">
+        <div className="hidden md:flex flex-1 min-w-0 h-screen bg-[#131418]">
           <div className="text-gray-300 text-sm flex w-full h-screen overflow-hidden">
-            {/* FILE EXPLORER */}
+            {/* file explorer */}
             <div className="explorer w-[30%] min-w-[200px] max-w-[300px] bg-[#131418] border-r border-[#2a2b30] flex flex-col">
-              {/* Explorer Header */}
+              {/* explorer header */}
               <div className="flex items-center justify-between px-4 py-4 border-b border-[#2a2b30]">
                 <h2 className="text-xs font-bold tracking-[2px] uppercase text-[#F7FF72]">
                   Explorer
                 </h2>
                 <button
-                  className=" text-xl text-white rounded active:scale-95 px-3.5 py-0.5 bg-red-400"
+                 className="group flex items-center justify-center gap-2 px-4 py-1.5 rounded-lg bg-[#F7FF72] text-[#0B0D10] text-sm font-semibold border border-[#F7FF72]/30 shadow-[0_0_12px_rgba(247,255,114,0.15)] hover:shadow-[0_0_20px_rgba(247,255,114,0.35)] hover:-translate-y-0.5 hover:bg-[#F7FF72]/90 active:scale-95 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!webContainer || isRunning}
                   onClick={async () => {
-                    console.log("Clicked....");
-                      await webContainer.mount(fileTree)
+                    if (!webContainer || isRunning) return;
 
-                    const installProcess = await webContainer.spawn("npm", [
-                      "install",
-                    ]);
-                    installProcess.output.pipeTo(
-                      new WritableStream({
-                        write(chunk) {
-                          console.log("chunk hai ", chunk);
-                        },
-                      }),
-                    );
-                   const runProcess = await webContainer.spawn("npm",["start"]);
-                   runProcess.output.pipeTo(new WritableStream({
-                    write(chunk){
-                      console.log("chunk hai2",chunk)
+                    if (Object.keys(fileTree).length === 0) {
+                      console.error("No project files to run.");
+                      return;
                     }
-                   }))
 
+                    setIsRunning(true);
+                    setIFrameUrl(null);
 
+                    try {
+                      console.log("Preparing project...");
+                      const webContainerTree = convertToWebContainerTree(fileTree);
+                      await webContainer.mount(webContainerTree);
+                      console.log("Files mounted successfully.");
 
+                      const packageJsonFile = fileTree["package.json"];
+                      if (!packageJsonFile) {
+                        throw new Error("package.json not found. Generate a package.json first.");
+                      }
 
+                      const packageJson = JSON.parse(getFileContents(packageJsonFile));
+                      const scripts = packageJson.scripts || {};
+
+                      const installProcess = await webContainer.spawn("npm", ["install"]);
+                      const installOutput = installProcess.output.pipeTo(
+                        new WritableStream({
+                          write(chunk) {
+                            console.log("[npm install]", chunk);
+                          },
+                        }),
+                      );
+
+                      const installExitCode = await installProcess.exit;
+                      await installOutput;
+
+                      if (installExitCode !== 0) {
+                        throw new Error(`npm install failed with exit code ${installExitCode}`);
+                      }
+
+                      let command = commands.start;
+                      if (!command) {
+                        if (scripts.dev) command = "npm run dev";
+                        else if (scripts.start) command = "npm start";
+                        else if (scripts.serve) command = "npm run serve";
+                        else throw new Error("No dev, start, or serve script found in package.json.");
+                      }
+
+                     
+                      if (/^npm\s+run\s+dev(?:\s|$)/.test(command) && !command.includes("--host")) {
+                        command += " -- --host 0.0.0.0";
+                      }
+
+                      const [program, ...args] = command.split(/\s+/);
+                      const runProcess = await webContainer.spawn(program, args);
+
+                      runProcess.output.pipeTo(
+                        new WritableStream({
+                          write(chunk) {
+                            console.log("[Application]", chunk);
+                          },
+                        }),
+                      );
+
+                      console.log("Application process started:", command);
+                      // Keep isRunning true until the server-ready event fires.
+                    } catch (error) {
+                      console.error("Failed to run project:", error);
+                      setIsRunning(false);
+                    }
                   }}
                 >
-                  Run
+                  {isRunning ? "Running..." : "Run"}{" "}
                 </button>
                 <span className="text-xs text-gray-500">
                   {Object.keys(fileTree).length} Files
                 </span>
               </div>
 
-              {/* Files Heading */}
-              <div className="px-4 py-3">
+               <div className="px-4 py-3">
                 <p className="text-[11px] font-semibold tracking-widest text-gray-500 uppercase">
                   Project Files
                 </p>
               </div>
 
-              {/* File List */}
-              <div className="file-tree flex-1 overflow-y-auto px-2 pb-3">
+               <div className="file-tree flex-1 overflow-y-auto px-2 pb-3">
                 {Object.keys(fileTree).length === 0 && (
                   <p className="px-3 py-2 text-xs text-gray-600">
                     No files yet. Ask @ai to create a project.
@@ -773,8 +850,7 @@ const DetailProject = () => {
                         : "text-gray-400 border-transparent hover:bg-[#1c1d22] hover:text-gray-200"
                     }`}
                   >
-                    {/* File Icon */}
-                    <span
+                     <span
                       className={`text-sm transition-colors ${
                         currentFile === file
                           ? "text-[#F7FF72]"
@@ -795,8 +871,7 @@ const DetailProject = () => {
                 ))}
               </div>
 
-              {/* Explorer Footer */}
-              <div className="px-4 py-3 border-t border-[#2a2b30] flex flex-col gap-1.5">
+               <div className="px-4 py-3 border-t border-[#2a2b30] flex flex-col gap-1.5">
                 {commands.build && (
                   <p className="text-[11px] text-gray-500 truncate">
                     Build:{" "}
@@ -818,10 +893,8 @@ const DetailProject = () => {
               </div>
             </div>
 
-            {/* FILE EDITOR */}
-            <div className="file-editor bg-[#131418] flex-1 min-w-0 h-full flex flex-col overflow-hidden">
-              {/* TOP TABS */}
-              <div className="top flex items-center bg-[#17181d] border-b border-[#2a2b30] shrink-0 overflow-x-auto">
+             <div className="file-editor bg-[#131418] flex-1 min-w-0 h-full flex flex-col overflow-hidden">
+               <div className="top flex items-center bg-[#17181d] border-b border-[#2a2b30] shrink-0 overflow-x-auto">
                 {openFile.map((file) => (
                   <div
                     key={file}
@@ -864,16 +937,14 @@ const DetailProject = () => {
                   </div>
                 ))}
 
-                {/* Empty Tabs Message */}
-                {openFile.length === 0 && (
+                 {openFile.length === 0 && (
                   <div className="px-5 py-3 text-xs text-gray-600">
                     No files open
                   </div>
                 )}
               </div>
 
-              {/* EDITOR INFO BAR */}
-              <div className="flex items-center justify-between px-5 py-2 bg-[#131418] border-b border-[#222329] shrink-0">
+               <div className="flex items-center justify-between px-5 py-2 bg-[#131418] border-b border-[#222329] shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-[#F7FF72] text-xs">◈</span>
 
@@ -887,7 +958,7 @@ const DetailProject = () => {
                 </span>
               </div>
 
-              {/* CODE EDITOR */}
+              {/* code editors */}
               <div className="flex-1 min-h-0 overflow-auto p-5 bg-[#131418]">
                 {currentFile && fileTree[currentFile] ? (
                   <pre className="text-[#d4d4d4] text-[13px] leading-7 font-mono whitespace-pre-wrap break-words">
@@ -916,8 +987,7 @@ const DetailProject = () => {
                 )}
               </div>
 
-              {/* STATUS BAR */}
-              <div className="flex items-center justify-between px-4 py-2 bg-[#17181d] border-t border-[#2a2b30] shrink-0">
+               <div className="flex items-center justify-between px-4 py-2 bg-[#17181d] border-t border-[#2a2b30] shrink-0">
                 <div className="flex items-center gap-3 text-[10px] text-gray-500">
                   <span className="text-[#F7FF72]">● You Can Do It Man</span>
                 </div>
@@ -927,6 +997,72 @@ const DetailProject = () => {
                 </span>
               </div>
             </div>
+          <div className="flex-1 min-w-0 h-full flex flex-col bg-[#0B0D10] overflow-hidden">
+
+     <div className="flex items-center gap-3 px-4 py-3 bg-[#0F1115] border-b border-[#24262D]">
+
+       <div className="flex items-center gap-1.5">
+        <span className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
+        <span className="w-2.5 h-2.5 rounded-full bg-yellow-400/80" />
+        <span className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
+      </div>
+
+       <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2 rounded-lg bg-[#15171D] border border-[#24262D] focus-within:border-[#F7FF72]/50 transition-colors">
+
+        <span className="text-[#F7FF72] text-sm">↗</span>
+
+        <input
+          type="text"
+          value={iFrameUrl}
+          readOnly
+          className="w-full min-w-0 bg-transparent text-xs text-gray-300 outline-none"
+        />
+      </div>
+
+       <button
+        onClick={() => window.open(iFrameUrl, "_blank", "noopener,noreferrer")}
+        className="shrink-0 px-3 py-2 rounded-lg border border-[#24262D] text-gray-400 hover:text-[#F7FF72] hover:border-[#F7FF72]/40 transition-all duration-200"
+        title="Open in new tab"
+      >
+        ↗
+      </button>
+    </div>
+
+     <div className="flex items-center justify-between px-4 py-2 bg-[#131418] border-b border-[#24262D]">
+      <span className="text-xs font-semibold tracking-wider uppercase text-gray-400">
+        Live Preview
+      </span>
+
+      <span className="flex items-center gap-2 text-[10px] text-gray-500">
+        <span className="w-1.5 h-1.5 rounded-full bg-[#F7FF72] animate-pulse" />
+        Connected
+      </span>
+    </div>
+
+     <div className="flex-1 min-h-0 p-2 bg-[#0B0D10]">
+      {iFrameUrl ? (
+        <iframe
+          key={iFrameUrl}
+          src={iFrameUrl}
+          title="Live Project Preview"
+          className="w-full h-full rounded-lg border border-[#24262D] bg-white"
+        />
+      ) : (
+        <div className="w-full h-full rounded-lg border border-dashed border-[#24262D] bg-[#0F1115] flex flex-col items-center justify-center text-center p-6">
+          <div className="w-12 h-12 rounded-2xl border border-[#F7FF72]/20 bg-[#F7FF72]/10 flex items-center justify-center text-[#F7FF72] text-xl mb-4">
+            ↗
+          </div>
+          <p className="text-sm font-semibold text-gray-300">
+            {isRunning ? "Starting your project..." : "Live preview is waiting"}
+          </p>
+          <p className="text-xs text-gray-500 mt-2 max-w-[240px] leading-5">
+            Generate a project, then click Run. Your website will appear here when its server is ready.
+          </p>
+        </div>
+      )}
+    </div>
+
+  </div>
           </div>
         </div>
       </main>
@@ -1013,8 +1149,7 @@ const DetailProject = () => {
                       </div>
                     </div>
 
-                    {/* STATUS */}
-
+ 
                     {isAlreadyCollaborator ? (
                       <span
                         className={`text-xs whitespace-nowrap ${
@@ -1035,8 +1170,7 @@ const DetailProject = () => {
               })}
             </div>
 
-            {/* MODAL FOOTER */}
-
+ 
             <footer className="border-t border-[#292C34] p-3 sm:p-4 flex items-center justify-between gap-3 shrink-0">
               <span className="text-xs sm:text-sm text-gray-500">
                 {selectedUsers.length} to add

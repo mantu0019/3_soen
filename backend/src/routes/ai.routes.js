@@ -3,11 +3,6 @@ import { getResult } from "../controller/ai.controller.js";
 
 const aiRouter = Router();
 
-
-aiRouter.get("/get-result",getResult)
-
-
-
-
+aiRouter.get("/get-result", getResult);
 
 export default aiRouter;
