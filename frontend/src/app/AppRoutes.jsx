@@ -1,42 +1,89 @@
-import { createBrowserRouter } from "react-router";
-import PublicLayout from "../components/PublicLayout";
-import Login from "../features/auth/pages/Login";
-import Register from "../features/auth/pages/Register";
-import PrivateLayout from "../components/PrivateLayout";
-import Home from "../components/Home";
-import Project from "../features/project/pages/Project";
-import DetailProject from "../features/project/pages/DetailProject";
  
-export const router =createBrowserRouter([
-    {path:"/",
-    element:<PublicLayout/>,
-        children:[
-            {
-                path:"",
-                element:<Login/>
-            },
-            {
-                path:"register",
-                element:<Register/>
-            }
-        ]
-    },{
-        path:"/dash",
-        element:<PrivateLayout/>,
-        children:[
-            {
-                path:"",
-                element:<Home/>
-            },{
-            path:"project",
-            element:<Project/>
-            }
-            ,{
-                path:":projectId",
-                element:<DetailProject/>
-            }
-        ]
-    }
-])
+import { createBrowserRouter } from "react-router";
+import { lazy, Suspense } from "react";
 
+import Loading from "../components/Loading";
+import ErrorPage from "../components/ErrorPage";
 
+const PublicLayout = lazy(() => import("../components/PublicLayout"));
+const PrivateLayout = lazy(() => import("../components/PrivateLayout"));
+
+const Login = lazy(() => import("../features/auth/pages/Login"));
+const Register = lazy(() => import("../features/auth/pages/Register"));
+
+const Home = lazy(() => import("../components/Home"));
+const HomeSkeleton = lazy(() => import("../components/Skeleton"));
+
+const Project = lazy(() => import("../features/project/pages/Project"));
+const DetailProject = lazy(
+  () => import("../features/project/pages/DetailProject"),
+);
+
+const LazyWrapper = ({ children, fallback = <Loading /> }) => {
+  return <Suspense fallback={fallback}>{children}</Suspense>;
+};
+
+export const router = createBrowserRouter([
+  {
+    path: "/",
+    errorElement: <ErrorPage />,
+    element: (
+      <LazyWrapper>
+        <PublicLayout />
+      </LazyWrapper>
+    ),
+    children: [
+      {
+        index: true,
+        element: (
+          <LazyWrapper>
+            <Login />
+          </LazyWrapper>
+        ),
+      },
+      {
+        path: "register",
+        element: (
+          <LazyWrapper>
+            <Register />
+          </LazyWrapper>
+        ),
+      },
+    ],
+  },
+
+  {
+    path: "/dash",
+    element: (
+      <LazyWrapper>
+        <PrivateLayout />
+      </LazyWrapper>
+    ),
+    children: [
+      {
+        index: true,
+        element: (
+          <LazyWrapper fallback={<HomeSkeleton />}>
+            <Home />
+          </LazyWrapper>
+        ),
+      },
+      {
+        path: "project",
+        element: (
+          <LazyWrapper>
+            <Project />
+          </LazyWrapper>
+        ),
+      },
+      {
+        path: ":projectId",
+        element: (
+          <LazyWrapper>
+            <DetailProject />
+          </LazyWrapper>
+        ),
+      },
+    ],
+  },
+]);
