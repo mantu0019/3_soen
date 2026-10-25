@@ -7,7 +7,7 @@ const AiLoading = () => {
       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F7FF72] text-black text-sm font-bold">
         AI{" "}
       </div>
-      ```
+      
       {/* Loading Animation */}
       <div className="flex flex-col gap-1">
         <span className="text-xs text-gray-400">AI is thinking...</span>
