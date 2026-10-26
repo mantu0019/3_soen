@@ -89,10 +89,10 @@ const Home = () => {
       <header className="sticky top-0 z-30 border-b border-white/[0.08] bg-[#090b0f]/85 backdrop-blur-xl">
         <nav className="mx-auto flex min-h-[76px] max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
           <Link to="/" className="group inline-flex shrink-0 items-center gap-2.5" aria-label="Seon home">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f7ff72] text-lg font-black text-[#11130a] shadow-[0_0_28px_rgba(247,255,114,0.12)] transition-transform duration-300 group-hover:rotate-[-6deg] group-hover:scale-105">
-              S
+            <span className="flex h-10 w-13 items-center justify-center rounded-xl bg-[#f7ff72] text-lg font-black text-[#11130a] shadow-[0_0_28px_rgba(247,255,114,0.12)] transition-transform duration-300 group-hover:rotate-[-6deg] group-hover:scale-105">
+              DEV
             </span>
-            <span className="text-xl font-extrabold tracking-[-0.06em]">SEO<span className="text-[#f7ff72]">N</span><span className="ml-2 hidden text-[10px] font-semibold uppercase tracking-[0.22em] text-gray-500 sm:inline">Workspace</span></span>
+            <span className="text-xl font-extrabold tracking-[-0.06em]">MATE<span className="text-[#f7ff72]"></span> </span>
           </Link>
 
           <div className="flex items-center gap-2 sm:gap-3">
@@ -210,7 +210,7 @@ const Home = () => {
             </div>
             <p className="text-sm text-gray-500">Member since</p>
             <h2 className="mt-1.5 text-xl font-semibold tracking-tight">{createdDate}</h2>
-            <p className="mt-2 text-xs text-gray-500">Your journey with Seon</p>
+            <p className="mt-2 text-xs text-gray-500">Your journey with DevMate</p>
           </article>
         </section>
 
@@ -244,7 +244,8 @@ const Home = () => {
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#f7ff72]">Your workspace</p>
               <h2 className="mt-2 text-xl font-semibold tracking-tight">Everything in one place.</h2>
               <p className="mt-3 text-sm leading-6 text-gray-400">
-                Your profile information is shown here so you can quickly check the account connected to your workspace.
+                Manage your profile and personal preferences, all in one place.
+
               </p>
               <div className="my-5 h-px bg-white/[0.08]" />
               <div className="flex items-center gap-3">
@@ -264,7 +265,7 @@ const Home = () => {
         </section>
 
         <footer className="mt-10 flex flex-col items-center justify-between gap-2 border-t border-white/[0.07] pt-6 text-center text-xs text-gray-600 sm:flex-row sm:text-left">
-          <p>© {new Date().getFullYear()} Seon. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} DevMate. All rights reserved.</p>
           <p className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Workspace available</p>
         </footer>
       </main>

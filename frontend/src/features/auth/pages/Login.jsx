@@ -39,8 +39,8 @@ const Login = () => {
 
         {/* Logo / Brand */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-extrabold tracking-tight">
-            SEO<span className="text-[#F7FF72]">N   </span>
+          <h1 className="text-4xl font-extrabold tracking-[2px]">
+           DEV<span className="text-[#F7FF72] ">MATE   </span>
           </h1>
 
           <p className="text-gray-400 mt-2">
@@ -243,7 +243,7 @@ const Login = () => {
 
         {/* Footer */}
         <p className="text-center text-xs text-gray-600 mt-6">
-          © 2026 Seon. All rights reserved.
+          © 2026 DevMate. All rights reserved.
         </p>
 
       </div>
