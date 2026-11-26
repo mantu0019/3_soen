@@ -17,8 +17,7 @@ dns.setServers(["1.1.1.1", "8.8.8.8"]);
 
 connectToDb();
  
-const port = envConfig.PORT || 8080;
-
+const port = process.env.PORT || envConfig.PORT || 8080;
 const httpServer = createServer(app);
 
 const io = new Server(httpServer, {

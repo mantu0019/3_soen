@@ -6,27 +6,36 @@ import cors from "cors";
 import projectRouter from "./routes/project.routes.js";
 import errorMiddleware from "./middleware/error.middleware.js";
 import aiRouter from "./routes/ai.routes.js";
-const app = express();
-app.use(express.json());
+import envConfig from "./config/env.js";
 
+const app = express();
+
+const allowedOrigin =
+  envConfig.FRONTEND_URL || "http://localhost:5173";
+
+// CORS
 app.use(
   cors({
-    origin: " http://localhost:5173",
+    origin: allowedOrigin,
     credentials: true,
   }),
 );
 
+app.use(express.json());
 app.use(cookieParser());
 app.use(morgan("dev"));
 
+// Routes
 app.use("/api/auth", authRouter);
 app.use("/api/project", projectRouter);
-app.use("/ai/api",aiRouter)
+app.use("/ai/api", aiRouter);
 
+// Error middleware
 app.use(errorMiddleware);
 
- app.get("/",(req,res)=>{
-  res.send("helllo india")
- })
+// Health check
+app.get("/", (req, res) => {
+  res.status(200).send("DevMate Backend is running!");
+});
 
 export default app;

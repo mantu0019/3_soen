@@ -31,6 +31,9 @@ if (!process.env.GEMINI_MODEL) {
 if (!process.env.GEMINI_FALLBACK_MODEL) {
   throw new Error("GEMINI_FALLBACK_MODEL is missing in .env");
 }
+if (!process.env.FRONTEND_URL) {
+  throw new Error("FRONTEND_URL is missing in .env");
+}
 
 const envConfig = {
   PORT: process.env.PORT,
@@ -41,7 +44,8 @@ const envConfig = {
   REDIS_PORT: process.env.REDIS_PORT,
   GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
   GEMINI_MODEL:process.env.GEMINI_MODEL,
-  GEMINI_FALLBACK_MODEL:process.env.GEMINI_FALLBACK_MODEL
+  GEMINI_FALLBACK_MODEL:process.env.GEMINI_FALLBACK_MODEL,
+  FRONTEND_URL:process.env.FRONTEND_URL
 };
 
 export default envConfig;
