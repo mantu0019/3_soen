@@ -10,13 +10,14 @@ import envConfig from "./config/env.js";
 
 const app = express();
 
-const allowedOrigin =
-  envConfig.FRONTEND_URL || "http://localhost:5173";
+const allowedOrigins = [
+  "http://localhost:5173",
+  envConfig.FRONTEND_URL,
+].filter(Boolean);
 
-// CORS
 app.use(
   cors({
-    origin: allowedOrigin,
+    origin: allowedOrigins,
     credentials: true,
   }),
 );

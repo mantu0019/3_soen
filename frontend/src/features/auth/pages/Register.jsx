@@ -20,7 +20,7 @@ const Register = () => {
   const password = watch("password");
 
   const onSubmit = async (data) => {
-    console.log("Register Data:", data);
+     
 
     try {
       await registerByUser(data);
