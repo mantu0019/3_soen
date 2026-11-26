@@ -14,7 +14,7 @@ const AuthInitializer = ({ children }) => {
       try {
         await getMeByUser();
       } catch (error) {
-        console.log("User is not authenticated");
+        // console.log("User is not authenticated");
       } finally {
         setCheckingAuth(false);
       }

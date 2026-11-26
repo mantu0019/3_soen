@@ -5,10 +5,10 @@ export const projectCreate = async ({ name }) => {
     const res = await api.post("/api/project/create", { name });
     return res.data;
   } catch (error) {
-    console.log(
-      "Project create failed:",
-      error?.response?.data?.message || error.message,
-    );
+    // console.log(
+    //   "Project create failed:",
+    //   error?.response?.data?.message || error.message,
+    // );
     throw error;
   }
 };
@@ -19,10 +19,10 @@ export const getProject = async () => {
 
     return res.data;
   } catch (error) {
-    console.log(
-      "get project failed:",
-      error?.response?.data?.message || error.message,
-    );
+    // console.log(
+    //   "get project failed:",
+    //   error?.response?.data?.message || error.message,
+    // );
     throw error;
   }
 };
@@ -36,10 +36,10 @@ export const addUser = async ({ projectId, user }) => {
 
     return res.data;
   } catch (error) {
-    console.log(
-      "addUser failed:",
-      error?.response?.data?.message || error?.message,
-    );
+    // console.log(
+    //   "addUser failed:",
+    //   error?.response?.data?.message || error?.message,
+    // );
 
     throw error;
   }
@@ -53,9 +53,9 @@ export const removeProject = async ({ projectId, user }) => {
     });
     return res.data;
   } catch (error) {
-    console.log(
-      "Remove User Failed :",
-      error?.response?.data?.message || error?.message,
-    );
+    // console.log(
+    //   "Remove User Failed :",
+    //   error?.response?.data?.message || error?.message,
+    // );
   }
 };

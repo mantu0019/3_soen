@@ -8,7 +8,7 @@ export const register = async ({ email, password }) => {
     const res = await api.post("/api/auth/register", { email, password });
     return res.data;
   } catch (error) {
-    console.error("Register failed:", error.response?.data?.message || error.message);
+    // console.error("Register failed:", error.response?.data?.message || error.message);
     throw error;
   }
 };
@@ -19,7 +19,7 @@ export const login = async ({ email, password }) => {
     const res = await api.post("/api/auth/login", { email, password });
     return res.data;
   } catch (error) {
-    console.error("Login failed:", error.response?.data?.message || error.message);
+    // console.error("Login failed:", error.response?.data?.message || error.message);
     throw error;
   }
 };
@@ -31,7 +31,7 @@ export const getMe = async () => {
     return res.data;
   } catch (error) {
     if (error.response?.status !== 401) {
-      console.error("getMe failed:", error.response?.data?.message || error.message);
+      // console.error("getMe failed:", error.response?.data?.message || error.message);
     }
     throw error;
   }
@@ -43,7 +43,7 @@ export const logOut = async () => {
     const res = await api.get("/api/auth/logOut");
     return res.data;
   } catch (error) {
-    console.error("Logout failed:", error.response?.data?.message || error.message);
+    // console.error("Logout failed:", error.response?.data?.message || error.message);
     throw error;
   }
 };
@@ -59,10 +59,10 @@ export const getAllUser = async () => {
 
 
   } catch (error) {
-    console.log(
-      "get all User :",
-      error?.response?.data?.message || error?.message,
-    );
+    // console.log(
+    //   "get all User :",
+    //   error?.response?.data?.message || error?.message,
+    // );
     throw error;
   }
 };
