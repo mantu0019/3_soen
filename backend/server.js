@@ -2,17 +2,15 @@ import app from "./src/app.js";
 import dns from "dns";
 import connectToDb from "./src/config/db.js";
 import envConfig from "./src/config/env.js";
-
 import { createServer } from "http";
 import { Server } from "socket.io";
-
 import AppError from "./src/utils/appError.js";
 import jwt from "jsonwebtoken";
 import { parse } from "cookie-es";
 import mongoose from "mongoose";
 import projectModel from "./src/models/project.model.js";
 import { generateResult } from "./src/services/ai.service.js";
- 
+  
 dns.setServers(["1.1.1.1", "8.8.8.8"]);
 
 connectToDb();
@@ -22,7 +20,7 @@ const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: envConfig.FRONTEND_URL,
     credentials: true,
   },
 });
