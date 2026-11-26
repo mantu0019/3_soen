@@ -26,7 +26,7 @@ export const registerController = asyncHandler(async (req, res) => {
   });
 
   if (!user) {
-     throw new AppError("user not created some reason")
+    throw new AppError("user not created some reason");
   }
 
   const token = jwt.sign(
@@ -36,6 +36,11 @@ export const registerController = asyncHandler(async (req, res) => {
     },
     envConfig.JWT_SECRET,
     { expiresIn: "7d" },
+    {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+    },
   );
 
   res.cookie("token", token);
@@ -47,7 +52,7 @@ export const registerController = asyncHandler(async (req, res) => {
     success: true,
     message: "user Register successfully",
     userDetail,
-    token
+    token,
   });
 });
 
@@ -78,7 +83,13 @@ export const loginController = asyncHandler(async (req, res) => {
     { expiresIn: "7d" },
   );
 
-  res.cookie("token", token);
+  res.cookie("token", token
+    ,{
+  httpOnly: true,
+  secure: true,
+  sameSite: "none",
+}
+  );
 
   const userDetail = user.toObject();
 
@@ -88,7 +99,7 @@ export const loginController = asyncHandler(async (req, res) => {
     success: true,
     message: "User login Successfully",
     userDetail,
-    token
+    token,
   });
 });
 
@@ -113,7 +124,7 @@ export const logOutController = asyncHandler(async (req, res) => {
   if (!token) {
     throw new AppError("Login Again");
   }
-  res.clearCookie("token");
+  res.clearCookie("token",{ httpOnly: true, secure: true, sameSite: "none" });
 
   redisClient.set(token, "logout", "EX", 60 * 60 * 7 * 24);
   res.status(200).json({
@@ -123,8 +134,7 @@ export const logOutController = asyncHandler(async (req, res) => {
 });
 
 export const getAllUserController = asyncHandler(async (req, res) => {
-  
-   const loggedInUser = await userModel.findOne({ _id: req.user._id });
+  const loggedInUser = await userModel.findOne({ _id: req.user._id });
   const getAllUser = await userModel.find({
     _id: { $ne: loggedInUser._id },
   });
